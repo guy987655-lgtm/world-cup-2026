@@ -90,6 +90,59 @@ select {
 .match.qualifies { box-shadow: 0 0 0 1.5px #27ae60 inset; }
 .match.notime { opacity: 0.60; }
 .star { font-size: 1.1rem; flex-shrink: 0; width: 20px; text-align: center; }
+.has-tip { position: relative; cursor: pointer; }
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(159, 214, 191, 0.25);
+  border: 1px solid #9fd6bf;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  color: #9fd6bf;
+  vertical-align: middle;
+  margin-right: 4px;
+  line-height: 1;
+  transition: background .2s;
+  user-select: none;
+}
+.info-icon:hover { background: rgba(159, 214, 191, 0.45); }
+.tip-box {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  width: 190px;
+  background: #0d2b21;
+  border: 1px solid #2a5c47;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: .78rem;
+  line-height: 1.8;
+  color: #f4f4f4;
+  z-index: 200;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.tip-box::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 6px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 6px solid #2a5c47;
+}
+.tip-sep { border-top: 1px solid #2a5c47; margin: 6px 0; }
+.has-tip:hover .tip-box,
+.has-tip.tip-open .tip-box { display: block; }
 .m-info { flex: 1; min-width: 0; }
 .m-teams { font-size: .98rem; font-weight: 600; }
 .m-meta { font-size: .75rem; color: #9fd6bf; margin-top: 2px; }

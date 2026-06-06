@@ -3,6 +3,7 @@ const TOP = [
   "גרמניה","הולנד","בלגיה","נורווגיה","אורוגוואי","אורוגואי"
 ];
 
+
 const KNOCKOUT = new Set([
   "32 הגדולות","שמינית גמר","רבע גמר","חצי גמר","מקום 3","גמר"
 ]);
@@ -190,8 +191,10 @@ async function init() {
       const qualBadge  = qual ? '<span class="badge">עומד בתנאים</span>' : '';
       const finishedBadge = played ? '<span class="badge finished">סיום</span>' : '';
 
+      const starSymbol = qual ? '⭐' : (top ? '●' : '');
+
       d.innerHTML = `
-        <div class="star">${qual ? '⭐' : (top ? '●' : '')}</div>
+        <div class="star">${starSymbol}</div>
         <div class="m-info">
           <div class="m-teams">${m.match}</div>
           <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}</div>
@@ -205,6 +208,16 @@ async function init() {
   }
 
   [els.q, els.top, els.hide, els.team, els.stage].forEach(e => e.addEventListener('change', render));
+
+  // Mobile tap: toggle tooltip on the filter ⭐
+  const filterStar = document.querySelector('.has-tip');
+  if (filterStar) {
+    filterStar.addEventListener('click', e => {
+      e.stopPropagation();
+      filterStar.classList.toggle('tip-open');
+    });
+    document.addEventListener('click', () => filterStar.classList.remove('tip-open'));
+  }
 
   function setUpdatedNow() {
     els.updated.textContent = '· עודכן ב-' + fmtTime(new Date());
