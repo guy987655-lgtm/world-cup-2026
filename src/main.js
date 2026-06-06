@@ -112,7 +112,7 @@ async function init() {
     });
     if ([...teamSel.options].some(o => o.value === prevTeam)) teamSel.value = prevTeam;
 
-    stageSel.innerHTML = '<option value="">כל השלבים</option>';
+    stageSel.innerHTML = '<option value="">כל הבתים</option>';
     [...new Set(MATCHES.map(m => m.group))].forEach(s => {
       const o = document.createElement('option');
       o.value = s; o.textContent = s;

@@ -39,6 +39,11 @@ header .sub { font-size: .85rem; color: #9fd6bf; margin-top: 4px; }
 .slider:before { content: ""; position: absolute; height: 22px; width: 22px; right: 3px; top: 3px; background: white; border-radius: 50%; transition: .3s; }
 input:checked + .slider { background: #27ae60; }
 input:checked + .slider:before { transform: translateX(-24px); }
+.selects-row {
+  display: flex;
+  gap: 8px;
+}
+.selects-row select { flex: 1; }
 select {
   background: #0d2b21;
   color: #f4f4f4;
