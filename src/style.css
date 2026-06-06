@@ -95,6 +95,7 @@ select {
 .match.qualifies { box-shadow: 0 0 0 1.5px #27ae60 inset; }
 .match.notime { opacity: 0.60; }
 .star { font-size: 1.1rem; flex-shrink: 0; width: 20px; text-align: center; }
+.label-row { display: flex; align-items: center; gap: 6px; }
 .has-tip { position: relative; cursor: pointer; }
 .info-icon {
   display: inline-flex;

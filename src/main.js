@@ -213,22 +213,25 @@ async function init() {
   if (filterStar) {
     const close = () => filterStar.classList.remove('tip-open');
 
-    // Desktop click — stop propagation so document listener doesn't close immediately
+    // Desktop: click toggles tooltip; stopPropagation keeps document listener from closing immediately
     filterStar.addEventListener('click', e => {
-      e.preventDefault();     // prevent label from toggling checkbox
       e.stopPropagation();
       filterStar.classList.toggle('tip-open');
     });
 
-    // Mobile touch — preventDefault stops label activation AND synthesized click
+    // Mobile: touchstart opens tooltip.
+    // preventDefault prevents the synthesized click that would fire after touchend
+    // and double-toggle (open then immediately close) the tooltip.
     filterStar.addEventListener('touchstart', e => {
       e.preventDefault();
       e.stopPropagation();
       filterStar.classList.toggle('tip-open');
     }, { passive: false });
 
-    // Close on click/touch outside (stopPropagation above ensures these don't fire for the icon itself)
+    // Close on click elsewhere (desktop)
     document.addEventListener('click', close);
+
+    // Close on tap elsewhere (mobile) — stopPropagation above means this won't fire for the icon's own touch
     document.addEventListener('touchstart', e => {
       if (!filterStar.contains(e.target)) close();
     }, { passive: true });
