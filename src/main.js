@@ -217,6 +217,7 @@ async function init() {
       filterStar.classList.toggle('tip-open');
     });
     document.addEventListener('click', () => filterStar.classList.remove('tip-open'));
+    window.addEventListener('scroll', () => filterStar.classList.remove('tip-open'), { passive: true });
   }
 
   function setUpdatedNow() {
