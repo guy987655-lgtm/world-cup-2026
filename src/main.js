@@ -47,6 +47,38 @@ function inWindow(m) {
 
 function qualifies(m) { return !noTime(m) && isTop(m) && inWindow(m); }
 
+const DATE_ORDER = Object.keys(DOW);
+
+function getTopmostVisibleDate() {
+  if (window.scrollY < 100) return null;
+  const sticky = document.querySelector('.sticky-top11');
+  const stickyBottom = sticky ? sticky.getBoundingClientRect().bottom : 60;
+  let result = null;
+  for (const h of document.querySelectorAll('.day-header')) {
+    if (h.getBoundingClientRect().top <= stickyBottom + 4) result = h.dataset.date;
+    else break;
+  }
+  return result;
+}
+
+function scrollToNearestDate(targetDate) {
+  const headers = [...document.querySelectorAll('.day-header')];
+  if (!headers.length) return;
+  let found = headers.find(h => h.dataset.date === targetDate);
+  if (!found) {
+    const idx = DATE_ORDER.indexOf(targetDate);
+    for (let i = idx - 1; i >= 0; i--) {
+      found = headers.find(h => h.dataset.date === DATE_ORDER[i]);
+      if (found) break;
+    }
+  }
+  if (!found) return;
+  const sticky = document.querySelector('.sticky-top11');
+  const offset = sticky ? sticky.offsetHeight : 50;
+  const y = window.scrollY + found.getBoundingClientRect().top - offset - 8;
+  window.scrollTo({ top: Math.max(0, y), behavior: 'instant' });
+}
+
 async function loadData() {
   const res = await fetch('/data/matches.json?t=' + Date.now());
   if (!res.ok) throw new Error('Network error: ' + res.status);
@@ -103,6 +135,8 @@ async function init() {
   };
 
   function render() {
+    const savedDate = getTopmostVisibleDate();
+
     let rows = MATCHES.filter(m => {
       if (els.q.checked    && !qualifies(m))                        return false;
       if (els.top.checked  && !isTop(m))                            return false;
@@ -128,6 +162,7 @@ async function init() {
         group.className = 'day-group';
         const h = document.createElement('div');
         h.className = 'day-header';
+        h.dataset.date = m.date;
         h.textContent = DOW[m.date] ? `${m.date} · יום ${DOW[m.date]}` : m.date;
         group.appendChild(h);
         els.list.appendChild(group);
@@ -139,22 +174,34 @@ async function init() {
       const qual = qualifies(m);
 
       const d = document.createElement('div');
-      d.className = 'match' + (top ? ' top10' : '') + (qual ? ' qualifies' : '') + (nt ? ' notime' : '');
+      const played = !!m.score;
+      d.className = 'match' + (top ? ' top10' : '') + (qual ? ' qualifies' : '') + (nt && !played ? ' notime' : '') + (played ? ' played' : '');
 
-      const timeHtml   = nt  ? '<div class="m-time tbd-t">שעה טרם נקבעה</div>' : `<div class="m-time">${m.time}</div>`;
+      let rightCol;
+      if (played) {
+        rightCol = `<div class="m-score">${m.score}</div>`;
+      } else if (nt) {
+        rightCol = '<div class="m-time tbd-t">שעה טרם נקבעה</div>';
+      } else {
+        rightCol = `<div class="m-time">${m.time}</div>`;
+      }
+
       const stageBadge = ko  ? `<span class="badge stage">${m.group}</span>` : `בית ${m.group}`;
       const qualBadge  = qual ? '<span class="badge">עומד בתנאים</span>' : '';
+      const finishedBadge = played ? '<span class="badge finished">סיום</span>' : '';
 
       d.innerHTML = `
         <div class="star">${qual ? '⭐' : (top ? '●' : '')}</div>
         <div class="m-info">
           <div class="m-teams">${m.match}</div>
-          <div class="m-meta">${stageBadge}${qualBadge}</div>
+          <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}</div>
         </div>
-        ${timeHtml}
+        ${rightCol}
       `;
       group.appendChild(d);
     });
+
+    if (savedDate) requestAnimationFrame(() => scrollToNearestDate(savedDate));
   }
 
   [els.q, els.top, els.hide, els.team, els.stage].forEach(e => e.addEventListener('change', render));
