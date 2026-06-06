@@ -211,32 +211,26 @@ async function init() {
 
   const filterStar = document.querySelector('.has-tip');
   if (filterStar) {
-    const close = () => filterStar.classList.remove('tip-open');
+    let tipOpen = false;
+    const setTip = open => {
+      tipOpen = open;
+      filterStar.classList.toggle('tip-open', open);
+    };
 
-    // Desktop: click toggles tooltip; stopPropagation keeps document listener from closing immediately
+    // ONE handler only. A tap fires a single click on the icon (cursor:pointer makes
+    // iOS dispatch it). No touchstart listener → no double-toggle. stopPropagation
+    // keeps the document-close handler below from firing for this same event.
     filterStar.addEventListener('click', e => {
-      e.stopPropagation();
-      filterStar.classList.toggle('tip-open');
-    });
-
-    // Mobile: touchstart opens tooltip.
-    // preventDefault prevents the synthesized click that would fire after touchend
-    // and double-toggle (open then immediately close) the tooltip.
-    filterStar.addEventListener('touchstart', e => {
       e.preventDefault();
       e.stopPropagation();
-      filterStar.classList.toggle('tip-open');
-    }, { passive: false });
+      setTip(!tipOpen);
+    });
 
-    // Close on click elsewhere (desktop)
-    document.addEventListener('click', close);
+    // Close on any tap/click elsewhere on the screen.
+    document.addEventListener('click', () => { if (tipOpen) setTip(false); });
 
-    // Close on tap elsewhere (mobile) — stopPropagation above means this won't fire for the icon's own touch
-    document.addEventListener('touchstart', e => {
-      if (!filterStar.contains(e.target)) close();
-    }, { passive: true });
-
-    window.addEventListener('scroll', close, { passive: true });
+    // Close when the user starts scrolling.
+    window.addEventListener('scroll', () => { if (tipOpen) setTip(false); }, { passive: true });
   }
 
   function setUpdatedNow() {
