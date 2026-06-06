@@ -121,7 +121,6 @@ async function init() {
   const els = {
     q:    document.getElementById('filterQualify'),
     top:  document.getElementById('filterTop10'),
-    hide: document.getElementById('hideTbd'),
     team: teamSel,
     stage: stageSel,
     list: document.getElementById('list'),
@@ -135,7 +134,6 @@ async function init() {
     let rows = MATCHES.filter(m => {
       if (els.q.checked    && !qualifies(m))                        return false;
       if (els.top.checked  && !isTop(m))                            return false;
-      if (els.hide.checked && noTime(m))                            return false;
       if (els.team.value   && !teamsOf(m).includes(els.team.value)) return false;
       if (els.stage.value  && m.group !== els.stage.value)          return false;
       return true;
@@ -203,7 +201,7 @@ async function init() {
     if (savedDate) requestAnimationFrame(() => scrollToNearestDate(savedDate));
   }
 
-  [els.q, els.top, els.hide, els.team, els.stage].forEach(e => e.addEventListener('change', render));
+  [els.q, els.top, els.team, els.stage].forEach(e => e.addEventListener('change', render));
 
   // Time-window info modal — opened by clicking the hint link, closed via the ✕,
   // backdrop click, or Escape. A real overlay modal is far more robust on mobile
