@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מונדיאל 2026 - לוח משחקים</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🏆 מונדיאל 2026</h1>
+      <div class="sub">לוח משחקים · שעון ישראל</div>
+    </header>
+    <div class="filters">
+      <div class="toggle-row">
+        <div>
+          <label>רק משחקים שעומדים בתנאים ⭐</label>
+          <div class="hint">טופ 11 + חלון השעות שהוגדר</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="filterQualify"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><label>רק נבחרות טופ 11</label></div>
+        <label class="switch"><input type="checkbox" id="filterTop10"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><label>הסתר משחקים ללא שעה קבועה</label></div>
+        <label class="switch"><input type="checkbox" id="hideTbd"><span class="slider"></span></label>
+      </div>
+      <select id="filterTeam"><option value="">כל הנבחרות</option></select>
+      <select id="filterStage"><option value="">כל השלבים</option></select>
+    </div>
+    <div class="count-row">
+      <span id="count"></span>
+      <span id="lastUpdated"></span>
+      <button id="refreshBtn" type="button">🔄 רענן נתונים</button>
+    </div>
+    <div id="list"></div>
+    <div class="note">🔒 משחקי הנוקאאוט (מ-28 ביוני) יתעדכנו לאחר סיום שלב הבתים.</div>
+    <div class="legend">
+      ⭐ = נבחרת טופ 11 שעומדת בחלון השעות · פס צהוב = משתתפת נבחרת טופ 11<br>
+      מסגרת ירוקה = עומד בכל התנאים<br>
+      <b>חלון השעות:</b> א'–ה' 14:00–21:00 · שישי 12:00–23:00 · שבת 07:00–21:00
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
