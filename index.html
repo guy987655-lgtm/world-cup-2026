@@ -15,19 +15,8 @@
     <div class="filters">
       <div class="toggle-row">
         <div>
-          <div class="label-row">
-            <label for="filterQualify">רק משחקים שעומדים בתנאים ⭐</label>
-            <span class="has-tip info-icon">i<div class="tip-box">
-              <div><b>⭐</b> טופ 11 + בחלון השעות</div>
-              <div><b>●</b> טופ 11, מחוץ לחלון</div>
-              <div class="tip-sep"></div>
-              <div><b>חלון שעות:</b></div>
-              <div>א'–ה' · 14:00–21:00</div>
-              <div>שישי · 12:00–23:00</div>
-              <div>שבת · 07:00–21:00</div>
-            </div></span>
-          </div>
-          <div class="hint">טופ 11 + חלון השעות שהוגדר</div>
+          <label for="filterQualify">רק משחקים שעומדים בתנאים ⭐</label>
+          <div class="hint">טופ 11 + <button type="button" id="openWindowInfo" class="link-btn">חלון השעות שהוגדר</button></div>
         </div>
         <label class="switch"><input type="checkbox" id="filterQualify"><span class="slider"></span></label>
       </div>
@@ -48,7 +37,6 @@
     </div>
     <div class="count-row">
       <span id="count"></span>
-      <span id="lastUpdated"></span>
       <button id="refreshBtn" type="button">🔄 רענן נתונים</button>
     </div>
     <div id="list"></div>
@@ -57,6 +45,17 @@
       ⭐ = נבחרת טופ 11 שעומדת בחלון השעות · פס צהוב = משתתפת נבחרת טופ 11<br>
       מסגרת ירוקה = עומד בכל התנאים<br>
       <b>חלון השעות:</b> א'–ה' 14:00–21:00 · שישי 12:00–23:00 · שבת 07:00–21:00
+    </div>
+  </div>
+  <div class="modal-overlay" id="windowModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="windowModalTitle">
+      <button type="button" class="modal-close" id="closeWindowInfo" aria-label="סגור">✕</button>
+      <h3 id="windowModalTitle">חלון השעות שהוגדר</h3>
+      <div class="modal-body">
+        <div class="win-row"><span>ראשון–חמישי</span><span>14:00–21:00</span></div>
+        <div class="win-row"><span>שישי</span><span>12:00–23:00</span></div>
+        <div class="win-row"><span>שבת</span><span>07:00–21:00</span></div>
+      </div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>

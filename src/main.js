@@ -86,11 +86,6 @@ async function loadData() {
   return await res.json();
 }
 
-function fmtTime(d) {
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
-}
 
 async function init() {
   let MATCHES = await loadData();
@@ -131,7 +126,6 @@ async function init() {
     stage: stageSel,
     list: document.getElementById('list'),
     count: document.getElementById('count'),
-    updated: document.getElementById('lastUpdated'),
     btn: document.getElementById('refreshBtn'),
   };
 
@@ -147,7 +141,9 @@ async function init() {
       return true;
     });
 
-    els.count.textContent = rows.length + ' רשומות';
+    const playedCount = rows.filter(m => m.score).length;
+    const notPlayedCount = rows.length - playedCount;
+    els.count.textContent = `שוחקו: ${playedCount} · טרם שוחקו: ${notPlayedCount}`;
     els.list.innerHTML = '';
 
     if (rows.length === 0) {
@@ -209,32 +205,19 @@ async function init() {
 
   [els.q, els.top, els.hide, els.team, els.stage].forEach(e => e.addEventListener('change', render));
 
-  const filterStar = document.querySelector('.has-tip');
-  if (filterStar) {
-    let tipOpen = false;
-    const setTip = open => {
-      tipOpen = open;
-      filterStar.classList.toggle('tip-open', open);
-    };
-
-    // ONE handler only. A tap fires a single click on the icon (cursor:pointer makes
-    // iOS dispatch it). No touchstart listener → no double-toggle. stopPropagation
-    // keeps the document-close handler below from firing for this same event.
-    filterStar.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      setTip(!tipOpen);
-    });
-
-    // Close on any tap/click elsewhere on the screen.
-    document.addEventListener('click', () => { if (tipOpen) setTip(false); });
-
-    // Close when the user starts scrolling.
-    window.addEventListener('scroll', () => { if (tipOpen) setTip(false); }, { passive: true });
-  }
-
-  function setUpdatedNow() {
-    els.updated.textContent = '· עודכן ב-' + fmtTime(new Date());
+  // Time-window info modal — opened by clicking the hint link, closed via the ✕,
+  // backdrop click, or Escape. A real overlay modal is far more robust on mobile
+  // than a positioned tooltip.
+  const winModal = document.getElementById('windowModal');
+  const openWin = document.getElementById('openWindowInfo');
+  const closeWin = document.getElementById('closeWindowInfo');
+  if (winModal && openWin) {
+    const show = () => { winModal.hidden = false; };
+    const hide = () => { winModal.hidden = true; };
+    openWin.addEventListener('click', show);
+    closeWin.addEventListener('click', hide);
+    winModal.addEventListener('click', e => { if (e.target === winModal) hide(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
   }
 
   els.btn.addEventListener('click', async () => {
@@ -245,7 +228,6 @@ async function init() {
       MATCHES = await loadData();
       rebuildDropdowns();
       render();
-      setUpdatedNow();
       els.btn.textContent = '✓ עודכן';
     } catch (e) {
       els.btn.textContent = '✗ שגיאה';
@@ -258,7 +240,6 @@ async function init() {
     }
   });
 
-  setUpdatedNow();
   render();
 }
 
