@@ -209,15 +209,31 @@ async function init() {
 
   [els.q, els.top, els.hide, els.team, els.stage].forEach(e => e.addEventListener('change', render));
 
-  // Mobile tap: toggle tooltip on the filter ⭐
   const filterStar = document.querySelector('.has-tip');
   if (filterStar) {
+    const close = () => filterStar.classList.remove('tip-open');
+
+    // Desktop click — stop propagation so document listener doesn't close immediately
     filterStar.addEventListener('click', e => {
+      e.preventDefault();     // prevent label from toggling checkbox
       e.stopPropagation();
       filterStar.classList.toggle('tip-open');
     });
-    document.addEventListener('click', () => filterStar.classList.remove('tip-open'));
-    window.addEventListener('scroll', () => filterStar.classList.remove('tip-open'), { passive: true });
+
+    // Mobile touch — preventDefault stops label activation AND synthesized click
+    filterStar.addEventListener('touchstart', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      filterStar.classList.toggle('tip-open');
+    }, { passive: false });
+
+    // Close on click/touch outside (stopPropagation above ensures these don't fire for the icon itself)
+    document.addEventListener('click', close);
+    document.addEventListener('touchstart', e => {
+      if (!filterStar.contains(e.target)) close();
+    }, { passive: true });
+
+    window.addEventListener('scroll', close, { passive: true });
   }
 
   function setUpdatedNow() {
