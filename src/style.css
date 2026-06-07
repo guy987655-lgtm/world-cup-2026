@@ -289,15 +289,17 @@ footer { text-align: center; margin-top: 24px; font-size: .7rem; color: #6fa68f;
   border: none;
   color: #f4f4f4;
   font-family: inherit;
-  font-size: .9rem;
+  font-size: .85rem;
   padding: 9px 12px;
   cursor: pointer;
-  text-align: right;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .cs-item:hover { background: rgba(255,255,255,0.07); }
 .cs-item.selected { background: rgba(39,174,96,0.18); }
-.cs-main { font-weight: 600; }
-.cs-sub  { font-size: .66rem; color: #6fa68f; font-weight: 400; font-style: italic; }
+.cs-main { font-weight: 600; flex-shrink: 0; }
+.cs-sub  { font-size: .62rem; color: #6fa68f; font-weight: 400; font-style: italic; overflow: hidden; text-overflow: ellipsis; }
 .cs-sep  { height: 1px; background: #2a5c47; margin: 4px 8px; }
 
 .clear-btn {
