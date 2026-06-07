@@ -118,7 +118,7 @@ const TEAM_EN = {
   "ספרד":"Spain","צרפת":"France","אנגליה":"England","ארגנטינה":"Argentina",
   "ברזיל":"Brazil","פורטוגל":"Portugal","גרמניה":"Germany","הולנד":"Netherlands",
   "בלגיה":"Belgium","נורווגיה":"Norway","אורוגוואי":"Uruguay","אורוגואי":"Uruguay",
-  "מקסיקו":"Mexico","ארה\"ב":"USA","מרוקו":"Morocco","קרואטיה":"Croatia",
+  "מקסיקו":"Mexico","ארה\"ב":"USA","קנדה":"Canada","מרוקו":"Morocco","קרואטיה":"Croatia",
   "קולומביה":"Colombia","יפן":"Japan","שווייץ":"Switzerland","איראן":"Iran",
   "סנגל":"Senegal","אוסטרליה":"Australia","דרום קוריאה":"South Korea",
   "אוסטריה":"Austria","טורקיה":"Turkey","פרגוואי":"Paraguay","תוניסיה":"Tunisia",
