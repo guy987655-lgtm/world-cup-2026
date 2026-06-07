@@ -100,11 +100,16 @@ async function init() {
     teamSel.innerHTML = '<option value="">כל הנבחרות</option>';
     const allTeams = new Set();
     MATCHES.forEach(m => teamsOf(m).forEach(t => allTeams.add(t)));
-    [...allTeams].sort((a, b) => a.localeCompare(b, 'he')).forEach(t => {
-      const o = document.createElement('option');
-      o.value = t; o.textContent = t;
-      teamSel.appendChild(o);
-    });
+    const topTeams  = [...allTeams].filter(t =>  TOP.includes(t)).sort((a, b) => a.localeCompare(b, 'he'));
+    const restTeams = [...allTeams].filter(t => !TOP.includes(t)).sort((a, b) => a.localeCompare(b, 'he'));
+    const topGroup = document.createElement('optgroup');
+    topGroup.label = '⭐ נבחרות טופ';
+    topTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; topGroup.appendChild(o); });
+    teamSel.appendChild(topGroup);
+    const restGroup = document.createElement('optgroup');
+    restGroup.label = 'שאר הנבחרות';
+    restTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; restGroup.appendChild(o); });
+    teamSel.appendChild(restGroup);
     if ([...teamSel.options].some(o => o.value === prevTeam)) teamSel.value = prevTeam;
 
     stageSel.innerHTML = '<option value="">כל הבתים</option>';
