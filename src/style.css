@@ -145,7 +145,7 @@ select {
   transition: background .2s;
 }
 .modal-close:hover { background: rgba(255,255,255,0.22); }
-.modal h3 { color: #ffd24a; font-size: 1.1rem; margin-bottom: 14px; padding-left: 34px; }
+.modal h3 { color: #ffd24a; font-size: 1.1rem; margin-bottom: 14px; padding-right: 34px; }
 .modal-body { font-size: .9rem; line-height: 1.7; }
 .modal-body .legend-line { margin-bottom: 4px; }
 .modal-sep { border-top: 1px solid #2a5c47; margin: 12px 0; }
