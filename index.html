@@ -24,7 +24,14 @@
         <label class="switch"><input type="checkbox" id="filterQualify"><span class="slider"></span></label>
       </div>
       <div class="selects-row">
-        <select id="filterTeam"><option value="" data-i18n="allTeams">כל הנבחרות</option></select>
+        <div class="custom-select" id="filterTeamWrap">
+          <button type="button" class="cs-trigger" id="filterTeamTrigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="cs-label" id="filterTeamLabel" data-i18n="allTeams">כל הנבחרות</span>
+            <span class="cs-caret">▾</span>
+          </button>
+          <div class="cs-panel" id="filterTeamPanel" role="listbox" hidden></div>
+          <select id="filterTeam" hidden><option value=""></option></select>
+        </div>
         <div class="custom-select" id="filterStageWrap">
           <button type="button" class="cs-trigger" id="filterStageTrigger" aria-haspopup="listbox" aria-expanded="false">
             <span class="cs-label" id="filterStageLabel" data-i18n="allStages">כל הבתים</span>

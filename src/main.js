@@ -371,22 +371,48 @@ async function init() {
     const prevTeam = teamSel.value;
     const prevStage = stageSel.value;
 
-    teamSel.innerHTML = `<option value="">${T('allTeams')}</option>`;
+    // ── Team custom dropdown ──
     const allTeams = new Set();
     MATCHES.forEach(m => teamsOf(m).forEach(t => allTeams.add(t)));
     const sortLocale = lang === 'he' ? 'he' : 'en';
     const sortBy = (a, b) => tTeam(a).localeCompare(tTeam(b), sortLocale);
     const topTeams  = [...allTeams].filter(t =>  TOP.includes(t)).sort(sortBy);
     const restTeams = [...allTeams].filter(t => !TOP.includes(t)).sort(sortBy);
-    const topGroup = document.createElement('optgroup');
-    topGroup.label = T('topGroup');
-    topTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = tTeam(t); topGroup.appendChild(o); });
-    teamSel.appendChild(topGroup);
-    const restGroup = document.createElement('optgroup');
-    restGroup.label = T('restGroup');
-    restTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = tTeam(t); restGroup.appendChild(o); });
-    teamSel.appendChild(restGroup);
+    // Rebuild hidden native select (value tracking)
+    teamSel.innerHTML = '<option value=""></option>';
+    topTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = tTeam(t); teamSel.appendChild(o); });
+    restTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = tTeam(t); teamSel.appendChild(o); });
     if ([...teamSel.options].some(o => o.value === prevTeam)) teamSel.value = prevTeam;
+    // Build custom team panel
+    const teamPanel = document.getElementById('filterTeamPanel');
+    const teamLabel = document.getElementById('filterTeamLabel');
+    if (teamPanel) {
+      teamPanel.innerHTML = '';
+      const addTeamItem = (value, text) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'cs-item' + (value === teamSel.value ? ' selected' : '');
+        item.dataset.value = value;
+        item.innerHTML = `<span class="cs-main">${text}</span>`;
+        teamPanel.appendChild(item);
+      };
+      const addSecLabel = (text) => {
+        const div = document.createElement('div');
+        div.className = 'cs-sec-label';
+        div.textContent = text;
+        teamPanel.appendChild(div);
+      };
+      addTeamItem('', T('allTeams'));
+      const sep1 = document.createElement('div'); sep1.className = 'cs-sep'; teamPanel.appendChild(sep1);
+      addSecLabel(T('topGroup'));
+      topTeams.forEach(t => addTeamItem(t, tTeam(t)));
+      if (restTeams.length) {
+        const sep2 = document.createElement('div'); sep2.className = 'cs-sep'; teamPanel.appendChild(sep2);
+        addSecLabel(T('restGroup'));
+        restTeams.forEach(t => addTeamItem(t, tTeam(t)));
+      }
+      if (teamLabel) teamLabel.textContent = teamSel.value ? tTeam(teamSel.value) : T('allTeams');
+    }
 
     stageSel.innerHTML = '<option value="">כל הבתים</option>';
     const KO_ORDER = ["32 הגדולות","שמינית גמר","רבע גמר","חצי גמר","מקום 3","גמר"];
@@ -422,7 +448,7 @@ async function init() {
       panel.appendChild(item);
     };
     addItem('', T('allStages'), '');
-    letters.forEach(s => addItem(s, T('groupLabel', s), tTeam(topSeed[s] || '')));
+    letters.forEach(s => addItem(s, lang === 'en' ? s : T('groupLabel', s), tTeam(topSeed[s] || '')));
     if (kos.length) {
       const sep = document.createElement('div');
       sep.className = 'cs-sep';
@@ -467,6 +493,34 @@ async function init() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { csPanel.hidden = true; csTrigger.setAttribute('aria-expanded', 'false'); }
   });
+
+  // Custom team dropdown — open/close + item selection
+  const teamWrap    = document.getElementById('filterTeamWrap');
+  const teamTrigger = document.getElementById('filterTeamTrigger');
+  const teamPanelEl = document.getElementById('filterTeamPanel');
+  if (teamWrap && teamTrigger && teamPanelEl) {
+    teamTrigger.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = !teamPanelEl.hidden;
+      teamPanelEl.hidden = open;
+      teamTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    teamPanelEl.addEventListener('click', e => {
+      const item = e.target.closest('.cs-item');
+      if (!item) return;
+      teamSel.value = item.dataset.value;
+      teamPanelEl.hidden = true;
+      teamTrigger.setAttribute('aria-expanded', 'false');
+      teamPanelEl.querySelectorAll('.cs-item').forEach(it => it.classList.toggle('selected', it === item));
+      const tl = document.getElementById('filterTeamLabel');
+      if (tl) tl.textContent = teamSel.value ? tTeam(teamSel.value) : T('allTeams');
+      teamSel.dispatchEvent(new Event('change'));
+    });
+    document.addEventListener('click', e => {
+      if (!teamWrap.contains(e.target)) { teamPanelEl.hidden = true; teamTrigger.setAttribute('aria-expanded', 'false'); }
+    });
+  }
+
   // When stage value changes (from any source), update the trigger label
   stageSel.addEventListener('change', () => {
     const v = stageSel.value;
@@ -505,6 +559,12 @@ async function init() {
     els.top.checked = false;
     els.team.value = '';
     els.stage.value = '';
+    // Reset team panel visual state
+    const tl = document.getElementById('filterTeamLabel');
+    if (tl) tl.textContent = T('allTeams');
+    document.querySelectorAll('#filterTeamPanel .cs-item').forEach(it =>
+      it.classList.toggle('selected', it.dataset.value === '')
+    );
     stageSel.dispatchEvent(new Event('change'));
     render();
   });

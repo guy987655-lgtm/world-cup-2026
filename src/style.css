@@ -301,6 +301,17 @@ footer { text-align: center; margin-top: 24px; font-size: .7rem; color: #6fa68f;
 .cs-main { font-weight: 600; flex-shrink: 0; }
 .cs-sub  { font-size: .62rem; color: #6fa68f; font-weight: 400; font-style: italic; overflow: hidden; text-overflow: ellipsis; }
 .cs-sep  { height: 1px; background: #2a5c47; margin: 4px 8px; }
+.cs-sec-label {
+  font-size: .65rem;
+  font-weight: 700;
+  color: #6fa68f;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 5px 12px 2px;
+  text-align: start;
+  pointer-events: none;
+  user-select: none;
+}
 
 .clear-btn {
   flex-shrink: 0;
