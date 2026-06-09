@@ -8,6 +8,7 @@
 </head>
 <body>
   <button type="button" id="langToggle" class="lang-toggle" aria-label="Toggle language">EN</button>
+  <button type="button" id="refreshBtn" class="refresh-fab" aria-label="רענן תוצאות"><span class="r-icon">🔄</span><span class="r-text" data-i18n="refresh">רענן תוצאות</span></button>
   <div class="wrap">
     <header>
       <h1><span data-i18n="title">מונדיאל 2026</span> 🏆</h1>
@@ -43,16 +44,9 @@
         <button type="button" id="clearFilters" class="clear-btn" data-i18n="clear" disabled>נקה</button>
       </div>
     </div>
-    <div class="sticky-top11">
-      <button type="button" id="todayBtn" class="today-btn" data-i18n="today" hidden>היום ⤴</button>
-      <div class="toggle-row">
-        <div><label data-i18n="onlyTop">רק נבחרות טופ</label></div>
-        <label class="switch"><input type="checkbox" id="filterTop10"><span class="slider"></span></label>
-      </div>
-    </div>
     <div class="count-row">
       <span id="count"></span>
-      <button id="refreshBtn" type="button" data-i18n="refresh">🔄 רענן תוצאות</button>
+      <button type="button" id="todayBtn" class="today-btn" data-i18n="today" hidden>היום ⤴</button>
     </div>
     <div id="list"></div>
     <div class="note" data-i18n="note">🔒 שמות הנבחרות במשחקי הנוקאאוט (מ-28 ביוני) יתעדכנו לאחר סיום שלב הבתים. השעות כבר סופיות.</div>

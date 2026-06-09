@@ -60,7 +60,7 @@ const STR = {
     today: 'היום ⤴',
     clear: 'נקה',
     played: 'שוחקו', notPlayed: 'טרם שוחקו',
-    refresh: '🔄 רענן תוצאות', refreshing: '⏳ מעדכן...', refreshed: '✓ עודכן', refreshErr: '✗ שגיאה',
+    refresh: 'רענן תוצאות', refreshing: 'מעדכן...', refreshed: 'עודכן', refreshErr: 'שגיאה',
     timeTBD: 'שעה טרם נקבעה',
     group: 'בית',
     meetsCriteria: 'עומד בתנאים', finished: 'סיום',
@@ -91,7 +91,7 @@ const STR = {
     today: 'Today ⤴',
     clear: 'Clear',
     played: 'Played', notPlayed: 'Upcoming',
-    refresh: '🔄 Refresh', refreshing: '⏳ Updating...', refreshed: '✓ Updated', refreshErr: '✗ Error',
+    refresh: 'Refresh', refreshing: 'Updating...', refreshed: 'Updated', refreshErr: 'Error',
     timeTBD: 'Time TBD',
     group: 'Group',
     meetsCriteria: 'Meets criteria', finished: 'Final',
@@ -151,6 +151,10 @@ function tDow(dateKey) {
   return lang === 'he' ? he : (DOW_EN[he] || he);
 }
 function tStage(g)    { return lang === 'he' ? g : (KO_EN[g] || g); }
+function teamLabelText(v) {
+  if (v === '__TOP__') return T('topGroup');
+  return v ? tTeam(v) : T('allTeams');
+}
 
 function tMatchPart(s) {
   s = s.trim();
@@ -326,11 +330,10 @@ function findTodayHeader() {
 
 function getTopmostVisibleDate() {
   if (window.scrollY < 100) return null;
-  const sticky = document.querySelector('.sticky-top11');
-  const stickyBottom = sticky ? sticky.getBoundingClientRect().bottom : 60;
+  const topEdge = 60;
   let result = null;
   for (const h of document.querySelectorAll('.day-header')) {
-    if (h.getBoundingClientRect().top <= stickyBottom + 4) result = h.dataset.date;
+    if (h.getBoundingClientRect().top <= topEdge + 4) result = h.dataset.date;
     else break;
   }
   return result;
@@ -348,9 +351,7 @@ function scrollToNearestDate(targetDate) {
     }
   }
   if (!found) return;
-  const sticky = document.querySelector('.sticky-top11');
-  const offset = sticky ? sticky.offsetHeight : 50;
-  const y = window.scrollY + found.getBoundingClientRect().top - offset - 8;
+  const y = window.scrollY + found.getBoundingClientRect().top - 58;
   window.scrollTo({ top: Math.max(0, y), behavior: 'instant' });
 }
 
@@ -380,6 +381,7 @@ async function init() {
     const restTeams = [...allTeams].filter(t => !TOP.includes(t)).sort(sortBy);
     // Rebuild hidden native select (value tracking)
     teamSel.innerHTML = '<option value=""></option>';
+    const topOpt = document.createElement('option'); topOpt.value = '__TOP__'; topOpt.textContent = T('topGroup'); teamSel.appendChild(topOpt);
     topTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = tTeam(t); teamSel.appendChild(o); });
     restTeams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = tTeam(t); teamSel.appendChild(o); });
     if ([...teamSel.options].some(o => o.value === prevTeam)) teamSel.value = prevTeam;
@@ -388,10 +390,10 @@ async function init() {
     const teamLabel = document.getElementById('filterTeamLabel');
     if (teamPanel) {
       teamPanel.innerHTML = '';
-      const addTeamItem = (value, text) => {
+      const addTeamItem = (value, text, extraClass) => {
         const item = document.createElement('button');
         item.type = 'button';
-        item.className = 'cs-item' + (value === teamSel.value ? ' selected' : '');
+        item.className = 'cs-item' + (value === teamSel.value ? ' selected' : '') + (extraClass ? ' ' + extraClass : '');
         item.dataset.value = value;
         item.innerHTML = `<span class="cs-main">${text}</span>`;
         teamPanel.appendChild(item);
@@ -404,14 +406,15 @@ async function init() {
       };
       addTeamItem('', T('allTeams'));
       const sep1 = document.createElement('div'); sep1.className = 'cs-sep'; teamPanel.appendChild(sep1);
-      addSecLabel(T('topGroup'));
-      topTeams.forEach(t => addTeamItem(t, tTeam(t)));
+      // "Top teams" is now a selectable filter (replaces the old top-only toggle)
+      addTeamItem('__TOP__', T('topGroup'), 'cs-group-opt');
+      topTeams.forEach(t => addTeamItem(t, tTeam(t), 'cs-indent'));
       if (restTeams.length) {
         const sep2 = document.createElement('div'); sep2.className = 'cs-sep'; teamPanel.appendChild(sep2);
         addSecLabel(T('restGroup'));
-        restTeams.forEach(t => addTeamItem(t, tTeam(t)));
+        restTeams.forEach(t => addTeamItem(t, tTeam(t), 'cs-indent'));
       }
-      if (teamLabel) teamLabel.textContent = teamSel.value ? tTeam(teamSel.value) : T('allTeams');
+      if (teamLabel) teamLabel.textContent = teamLabelText(teamSel.value);
     }
 
     stageSel.innerHTML = '<option value="">כל הבתים</option>';
@@ -474,6 +477,10 @@ async function init() {
   const csPanel = document.getElementById('filterStagePanel');
   csTrigger.addEventListener('click', e => {
     e.stopPropagation();
+    // Close the team panel if it's open (only one filter open at a time)
+    const tp = document.getElementById('filterTeamPanel');
+    const tt = document.getElementById('filterTeamTrigger');
+    if (tp) { tp.hidden = true; tt && tt.setAttribute('aria-expanded', 'false'); }
     const open = !csPanel.hidden;
     csPanel.hidden = open;
     csTrigger.setAttribute('aria-expanded', String(!open));
@@ -501,6 +508,9 @@ async function init() {
   if (teamWrap && teamTrigger && teamPanelEl) {
     teamTrigger.addEventListener('click', e => {
       e.stopPropagation();
+      // Close the stage panel if it's open (only one filter open at a time)
+      csPanel.hidden = true;
+      csTrigger.setAttribute('aria-expanded', 'false');
       const open = !teamPanelEl.hidden;
       teamPanelEl.hidden = open;
       teamTrigger.setAttribute('aria-expanded', String(!open));
@@ -513,7 +523,7 @@ async function init() {
       teamTrigger.setAttribute('aria-expanded', 'false');
       teamPanelEl.querySelectorAll('.cs-item').forEach(it => it.classList.toggle('selected', it === item));
       const tl = document.getElementById('filterTeamLabel');
-      if (tl) tl.textContent = teamSel.value ? tTeam(teamSel.value) : T('allTeams');
+      if (tl) tl.textContent = teamLabelText(teamSel.value);
       teamSel.dispatchEvent(new Event('change'));
     });
     document.addEventListener('click', e => {
@@ -539,7 +549,6 @@ async function init() {
 
   const els = {
     q:    document.getElementById('filterQualify'),
-    top:  document.getElementById('filterTop10'),
     team: teamSel,
     stage: stageSel,
     list: document.getElementById('list'),
@@ -549,14 +558,13 @@ async function init() {
   };
 
   function anyFilterActive() {
-    return els.q.checked || els.top.checked || !!els.team.value || !!els.stage.value;
+    return els.q.checked || !!els.team.value || !!els.stage.value;
   }
   function updateClearBtn() {
     els.clear.disabled = !anyFilterActive();
   }
   els.clear.addEventListener('click', () => {
     els.q.checked = false;
-    els.top.checked = false;
     els.team.value = '';
     els.stage.value = '';
     // Reset team panel visual state
@@ -569,40 +577,49 @@ async function init() {
     render();
   });
 
-  // "היום" button — shows when scrolled past today's date header
+  // "היום" floating button — shows when today's date header is scrolled away from top
   const todayBtn = document.getElementById('todayBtn');
   function updateTodayBtn() {
     const target = findTodayHeader();
-    const sticky = document.querySelector('.sticky-top11');
-    if (!target) {
-      todayBtn.hidden = true;
-      sticky && sticky.classList.remove('has-today');
-      return;
-    }
-    const stickyBottom = sticky ? sticky.getBoundingClientRect().bottom : 60;
+    if (!target) { todayBtn.hidden = true; return; }
     const top = target.getBoundingClientRect().top;
-    const show = !(top >= stickyBottom - 4 && top <= stickyBottom + 40);
-    todayBtn.hidden = !show;
-    sticky && sticky.classList.toggle('has-today', show);
+    // Hide while today's header is resting near the top (you're already there)
+    todayBtn.hidden = (top >= 20 && top <= 96);
   }
   todayBtn.addEventListener('click', () => {
     const target = findTodayHeader();
     if (!target) return;
-    const sticky = document.querySelector('.sticky-top11');
-    const offset = sticky ? sticky.offsetHeight : 50;
-    const y = window.scrollY + target.getBoundingClientRect().top - offset - 8;
+    const y = window.scrollY + target.getBoundingClientRect().top - 58;
     window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
   });
-  window.addEventListener('scroll', updateTodayBtn, { passive: true });
+
+  // Pin only the "היום" button to the top once the count row scrolls past it
+  function updateTodayPin() {
+    const cr = document.querySelector('.count-row');
+    if (!cr) return;
+    todayBtn.classList.toggle('pinned', cr.getBoundingClientRect().top <= 10);
+  }
+
+  // Refresh fab — collapses to icon-only once the page is scrolled
+  function updateRefreshFab() {
+    els.btn.classList.toggle('scrolled', window.scrollY > 60);
+  }
+
+  function onScroll() { updateTodayBtn(); updateTodayPin(); updateRefreshFab(); }
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
 
   function render() {
     const savedDate = getTopmostVisibleDate();
 
     let rows = MATCHES.filter(m => {
-      if (els.q.checked    && !qualifies(m))                        return false;
-      if (els.top.checked  && !isTop(m))                            return false;
-      if (els.team.value   && !teamsOf(m).includes(els.team.value)) return false;
-      if (els.stage.value  && m.group !== els.stage.value)          return false;
+      if (els.q.checked && !qualifies(m)) return false;
+      if (els.team.value === '__TOP__') {
+        if (!isTop(m)) return false;
+      } else if (els.team.value && !teamsOf(m).includes(els.team.value)) {
+        return false;
+      }
+      if (els.stage.value && m.group !== els.stage.value) return false;
       return true;
     });
 
@@ -680,10 +697,10 @@ async function init() {
     });
 
     if (savedDate) requestAnimationFrame(() => scrollToNearestDate(savedDate));
-    requestAnimationFrame(updateTodayBtn);
+    requestAnimationFrame(onScroll);
   }
 
-  [els.q, els.top, els.team, els.stage].forEach(e => e.addEventListener('change', render));
+  [els.q, els.team, els.stage].forEach(e => e.addEventListener('change', render));
 
   // Time-window info modal — opened by clicking the hint link, closed via the ✕,
   // backdrop click, or Escape. A real overlay modal is far more robust on mobile
@@ -700,22 +717,35 @@ async function init() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
   }
 
+  const R_ICONS = { refresh: '🔄', refreshing: '⏳', refreshed: '✓', refreshErr: '✗' };
+  let refreshState = 'refresh';
+  function setRefreshState(state) {
+    refreshState = state;
+    const ic = els.btn.querySelector('.r-icon');
+    const tx = els.btn.querySelector('.r-text');
+    if (ic) ic.textContent = R_ICONS[state];
+    if (tx) tx.textContent = T(state);
+  }
+  const SUCCESS_MS = 5 * 60 * 1000; // keep the ✓ visible for 5 minutes
+  let refreshTimer = null;
   els.btn.addEventListener('click', async () => {
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     els.btn.disabled = true;
-    els.btn.textContent = T('refreshing');
+    setRefreshState('refreshing');
     try {
-      MATCHES = await loadData();
+      const data = await loadData();
+      // Verify the refresh actually returned valid match data before declaring success
+      if (!Array.isArray(data) || data.length === 0) throw new Error('Invalid or empty data');
+      MATCHES = data;
       rebuildDropdowns();
       render();
-      els.btn.textContent = T('refreshed');
+      els.btn.disabled = false;
+      setRefreshState('refreshed');
+      refreshTimer = setTimeout(() => { setRefreshState('refresh'); refreshTimer = null; }, SUCCESS_MS);
     } catch (e) {
-      els.btn.textContent = T('refreshErr');
       console.error(e);
-    } finally {
-      setTimeout(() => {
-        els.btn.textContent = T('refresh');
-        els.btn.disabled = false;
-      }, 1500);
+      setRefreshState('refreshErr');
+      refreshTimer = setTimeout(() => { setRefreshState('refresh'); els.btn.disabled = false; refreshTimer = null; }, 2000);
     }
   });
 
@@ -772,6 +802,8 @@ async function init() {
     if (langBtn) langBtn.textContent = lang === 'he' ? 'EN' : 'עב';
     const tzBtn = document.getElementById('tzBtn');
     if (tzBtn) tzBtn.textContent = tzLabel(currentTz);
+    // Re-apply the refresh button's current state (icon + translated text)
+    setRefreshState(refreshState);
   }
   applyStaticI18n();
 
