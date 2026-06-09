@@ -601,8 +601,17 @@ async function init() {
   }
 
   // Refresh fab — collapses to icon-only once the page is scrolled
+  // When in "refreshed" (✓) state, hide entirely on scroll instead of collapsing
+  let refreshState = 'refresh';
   function updateRefreshFab() {
-    els.btn.classList.toggle('scrolled', window.scrollY > 60);
+    const isScrolled = window.scrollY > 60;
+    if (refreshState === 'refreshed') {
+      els.btn.classList.remove('scrolled');
+      els.btn.classList.toggle('fab-hidden', isScrolled);
+    } else {
+      els.btn.classList.remove('fab-hidden');
+      els.btn.classList.toggle('scrolled', isScrolled);
+    }
   }
 
   function onScroll() { updateTodayBtn(); updateTodayPin(); updateRefreshFab(); }
@@ -718,13 +727,13 @@ async function init() {
   }
 
   const R_ICONS = { refresh: '🔄', refreshing: '⏳', refreshed: '✓', refreshErr: '✗' };
-  let refreshState = 'refresh';
   function setRefreshState(state) {
     refreshState = state;
     const ic = els.btn.querySelector('.r-icon');
     const tx = els.btn.querySelector('.r-text');
     if (ic) ic.textContent = R_ICONS[state];
     if (tx) tx.textContent = T(state);
+    updateRefreshFab(); // re-evaluate sticky/hidden based on new state
   }
   const SUCCESS_MS = 5 * 60 * 1000; // keep the ✓ visible for 5 minutes
   let refreshTimer = null;
