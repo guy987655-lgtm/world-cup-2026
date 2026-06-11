@@ -703,6 +703,10 @@ async function init() {
   onScroll();
   window.addEventListener('scroll', onScroll, { passive: true });
 
+  // Which live rows are expanded — keyed by date+match so the state
+  // survives the silent background re-renders
+  const expandedLive = new Set();
+
   function render() {
     const savedDate = getTopmostVisibleDate();
 
@@ -785,6 +789,16 @@ async function init() {
 
       const starSymbol = qual ? '⭐' : (top ? '●' : '');
 
+      // A live group-stage match expands to its group standings on click
+      const expandable = live && !ko;
+      const expKey = m.date + '@' + m.match;
+      const isOpen = expandable && expandedLive.has(expKey);
+      if (expandable) {
+        d.classList.add('expandable');
+        if (isOpen) d.classList.add('open');
+        d.dataset.expKey = expKey;
+      }
+
       d.innerHTML = `
         <div class="star">${starSymbol}</div>
         <div class="m-info">
@@ -792,8 +806,19 @@ async function init() {
           <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}${liveBadge}</div>
         </div>
         ${rightCol}
+        ${expandable ? '<span class="m-chevron">▾</span>' : ''}
       `;
       group.appendChild(d);
+
+      if (expandable) {
+        const exp = document.createElement('div');
+        exp.className = 'm-expand' + (isOpen ? ' open' : '');
+        const inner = document.createElement('div');
+        inner.className = 'm-expand-inner';
+        inner.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
+        exp.appendChild(inner);
+        group.appendChild(exp);
+      }
     });
 
     if (savedDate) requestAnimationFrame(() => scrollToNearestDate(savedDate));
@@ -801,6 +826,18 @@ async function init() {
   }
 
   [els.q, els.team, els.stage].forEach(e => e.addEventListener('change', render));
+
+  // Toggle the group standings slider under a live match row
+  els.list.addEventListener('click', e => {
+    const row = e.target.closest('.match.expandable');
+    if (!row) return;
+    const exp = row.nextElementSibling;
+    if (!exp || !exp.classList.contains('m-expand')) return;
+    const open = exp.classList.toggle('open');
+    row.classList.toggle('open', open);
+    if (open) expandedLive.add(row.dataset.expKey);
+    else expandedLive.delete(row.dataset.expKey);
+  });
 
   // Time-window info modal — opened by clicking the hint link, closed via the ✕,
   // backdrop click, or Escape. A real overlay modal is far more robust on mobile

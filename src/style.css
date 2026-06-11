@@ -194,6 +194,24 @@ select {
 .badge.live { background: #e74c3c; animation: livePulse 1.6s ease-in-out infinite; }
 @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .match.live { border-right-color: #e74c3c; }
+
+/* ── Expandable live row → group standings slider ── */
+.match.expandable { cursor: pointer; }
+.m-chevron {
+  flex-shrink: 0;
+  color: #9fd6bf;
+  font-size: .8rem;
+  transition: transform .3s;
+}
+.match.open .m-chevron { transform: rotate(180deg); }
+.m-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .3s ease;
+}
+.m-expand.open { grid-template-rows: 1fr; }
+.m-expand-inner { overflow: hidden; }
+.m-expand .standings-wrap { margin-bottom: 7px; }
 .m-score {
   font-size: 1.2rem;
   font-weight: 800;
