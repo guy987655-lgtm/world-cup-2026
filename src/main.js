@@ -64,6 +64,10 @@ const STR = {
     timeTBD: 'שעה טרם נקבעה',
     group: 'בית',
     meetsCriteria: 'עומד בתנאים', finished: 'סיום', live: 'LIVE',
+    scorersTitle: 'כובשים', noGoals: 'ללא שערים', possession: 'אחזקת כדור',
+    oddsTitle: 'יחס הימורים', draw: 'תיקו', formTitle: 'כושר אחרון',
+    pen: 'פנדל', ownGoal: 'שער עצמי',
+    topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
     noMatches: 'אין משחקים שעונים על הסינון 🤷',
     note: '🔒 שמות הנבחרות במשחקי הנוקאאוט (מ-28 ביוני) יתעדכנו לאחר סיום שלב הבתים. השעות כבר סופיות.',
     legend: '⭐ = נבחרת טופ שעומדת בחלון השעות · פס צהוב = משתתפת נבחרת טופ<br>מסגרת ירוקה = עומד בכל התנאים<br><b>חלון השעות:</b> א\'–ה\' 14:00–21:00 · שישי 12:00–23:00 · שבת 07:00–21:00',
@@ -95,6 +99,10 @@ const STR = {
     timeTBD: 'Time TBD',
     group: 'Group',
     meetsCriteria: 'Meets criteria', finished: 'Final', live: 'LIVE',
+    scorersTitle: 'Scorers', noGoals: 'No goals', possession: 'Possession',
+    oddsTitle: 'Odds', draw: 'Draw', formTitle: 'Recent form',
+    pen: 'pen.', ownGoal: 'own goal',
+    topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
     noMatches: 'No matches match the filter 🤷',
     note: '🔒 Knockout team names (from June 28) will be set after the group stage. Times are final.',
     legend: '⭐ = Top team in the time window · Yellow bar = top team playing<br>Green border = meets all criteria<br><b>Time window:</b> Sun–Thu 14:00–21:00 · Fri 12:00–23:00 · Sat 07:00–21:00',
@@ -381,6 +389,28 @@ function espnIlDateTime(utcIso) {
   };
 }
 
+// Flag emoji per team (keyed by our English team names)
+const TEAM_FLAG = {
+  'Spain':'🇪🇸','France':'🇫🇷','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Argentina':'🇦🇷','Brazil':'🇧🇷',
+  'Portugal':'🇵🇹','Germany':'🇩🇪','Netherlands':'🇳🇱','Belgium':'🇧🇪','Norway':'🇳🇴',
+  'Uruguay':'🇺🇾','Mexico':'🇲🇽','USA':'🇺🇸','Canada':'🇨🇦','Morocco':'🇲🇦',
+  'Croatia':'🇭🇷','Colombia':'🇨🇴','Japan':'🇯🇵','Switzerland':'🇨🇭','Iran':'🇮🇷',
+  'Senegal':'🇸🇳','Australia':'🇦🇺','South Korea':'🇰🇷','Austria':'🇦🇹','Turkey':'🇹🇷',
+  'Paraguay':'🇵🇾','Tunisia':'🇹🇳','Saudi Arabia':'🇸🇦','Egypt':'🇪🇬','Czech Republic':'🇨🇿',
+  'Sweden':'🇸🇪','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Ghana':'🇬🇭','Iraq':'🇮🇶','Panama':'🇵🇦',
+  'Ecuador':'🇪🇨',"Côte d'Ivoire":'🇨🇮','Algeria':'🇩🇿','Qatar':'🇶🇦','Uzbekistan':'🇺🇿',
+  'Jordan':'🇯🇴','DR Congo':'🇨🇩','Haiti':'🇭🇹','Bosnia & Herzegovina':'🇧🇦',
+  'Cape Verde':'🇨🇻','New Zealand':'🇳🇿','South Africa':'🇿🇦','Curaçao':'🇨🇼',
+};
+
+// American moneyline ("+165" / "-225") → decimal odds string ("2.65" / "1.44")
+function amToDec(s) {
+  if (s === 'EVEN') return '2.00';
+  const v = parseInt(s, 10);
+  if (!Number.isFinite(v) || v === 0) return null;
+  return (v > 0 ? 1 + v / 100 : 1 + 100 / Math.abs(v)).toFixed(2);
+}
+
 async function loadScores() {
   const res = await fetch(SCORES_URL);
   if (!res.ok) throw new Error('Scores network error: ' + res.status);
@@ -390,13 +420,38 @@ async function loadScores() {
     const home = comp.competitors.find(c => c.homeAway === 'home');
     const away = comp.competitors.find(c => c.homeAway === 'away');
     const norm = n => ESPN_ALIAS[n] || n;
+    const state = e.status?.type?.state; // 'pre' | 'in' | 'post'
+    const stat = (c, name) => (c.statistics || []).find(s2 => s2.name === name)?.displayValue || '';
+    const ml = comp.odds?.[0]?.moneyline;
+    const homeEn = norm(home.team.displayName);
+    const awayEn = norm(away.team.displayName);
     return {
       ...espnIlDateTime(e.date),
-      state: e.status?.type?.state, // 'pre' | 'in' | 'post'
-      homeEn: norm(home.team.displayName),
-      awayEn: norm(away.team.displayName),
+      state,
+      homeEn,
+      awayEn,
       homeScore: home.score,
       awayScore: away.score,
+      clock: state === 'in' ? (e.status?.displayClock || '') : '',
+      homeId: home.team.id,
+      awayId: away.team.id,
+      goals: (comp.details || []).filter(d2 => d2.scoringPlay && !d2.shootout).map(d2 => ({
+        teamId: d2.team?.id,
+        teamEn: d2.team?.id === home.team.id ? homeEn : awayEn,
+        minute: d2.clock?.displayValue || '',
+        player: d2.athletesInvolved?.[0]?.displayName || '',
+        playerId: d2.athletesInvolved?.[0]?.id || '',
+        og: !!d2.ownGoal,
+        pk: !!d2.penaltyKick,
+      })),
+      reds: (comp.details || []).filter(d2 => d2.redCard).map(d2 => d2.team?.id),
+      posHome: stat(home, 'possessionPct'),
+      posAway: stat(away, 'possessionPct'),
+      formHome: home.form || '',
+      formAway: away.form || '',
+      oddsHome: amToDec(ml?.home?.close?.odds),
+      oddsDraw: amToDec(ml?.draw?.close?.odds),
+      oddsAway: amToDec(ml?.away?.close?.odds),
     };
   });
 }
@@ -427,10 +482,115 @@ function applyScores(matches, scores) {
         if (s) flip = en[0] !== s.homeEn; // keep score in the row's team order
       }
     }
-    if (!s || s.state === 'pre') return;
+    if (!s) return;
+    // Extra ESPN data for the expandable row panel, oriented to the row's team order
+    const A = !flip; // true when the row's first team is ESPN's home team
+    m.ext = {
+      state: s.state,
+      clock: s.clock,
+      goals1: s.goals.filter(g => g.teamId === (A ? s.homeId : s.awayId)),
+      goals2: s.goals.filter(g => g.teamId === (A ? s.awayId : s.homeId)),
+      reds1: s.reds.filter(id => id === (A ? s.homeId : s.awayId)).length,
+      reds2: s.reds.filter(id => id === (A ? s.awayId : s.homeId)).length,
+      pos1: A ? s.posHome : s.posAway,
+      pos2: A ? s.posAway : s.posHome,
+      form1: A ? s.formHome : s.formAway,
+      form2: A ? s.formAway : s.formHome,
+      odds1: A ? s.oddsHome : s.oddsAway,
+      oddsX: s.oddsDraw,
+      odds2: A ? s.oddsAway : s.oddsHome,
+    };
+    if (s.state === 'pre') return;
     m.score = flip ? `${s.awayScore}-${s.homeScore}` : `${s.homeScore}-${s.awayScore}`;
     m.live = s.state === 'in';
   });
+}
+
+// Tournament golden-boot table, aggregated from every goal event ESPN reports
+// (own goals excluded). Refreshed on each data load.
+let TOP_SCORERS = [];
+function computeTopScorers(scores) {
+  const byId = {};
+  scores.forEach(s => s.goals.forEach(g => {
+    if (g.og || !g.playerId) return;
+    if (!byId[g.playerId]) byId[g.playerId] = { id: g.playerId, player: g.player, team: g.teamEn, goals: 0 };
+    byId[g.playerId].goals++;
+  }));
+  return Object.values(byId).sort((a, b) => b.goals - a.goals);
+}
+
+// Displayed names of a row's two teams (knockout rows lose their "משחק N:" prefix)
+function rowTeamLabels(m) {
+  if (!isKnockoutRow(m)) return teamsOf(m).map(tTeam);
+  let s = tMatchString(m.match);
+  const ci = s.indexOf(': ');
+  if (ci > -1) s = s.slice(ci + 2);
+  const i = s.indexOf(' - ');
+  return i > -1 ? [s.slice(0, i), s.slice(i + 3)] : [s, ''];
+}
+
+function formHtml(f) {
+  return `<span class="f-letters" dir="ltr">${f.split('').map(c => `<span class="f-${c}">${c}</span>`).join('')}</span>`;
+}
+
+function goalsHtml(goals) {
+  return goals.map(g => {
+    const name = g.playerId
+      ? `<button type="button" class="scorer-link" data-pid="${g.playerId}">${g.player}</button>`
+      : g.player;
+    return `<div class="scorer">⚽ ${g.minute} ${name}${g.pk ? ` (${T('pen')})` : ''}${g.og ? ` (${T('ownGoal')})` : ''}</div>`;
+  }).join('');
+}
+
+// Expandable panel content per match state:
+// pre → odds + recent form · live → scorers + possession + group table · post → scorers
+function buildExtPanel(m, MATCHES) {
+  const x = m.ext;
+  if (!x) return null;
+  const panel = document.createElement('div');
+  panel.className = 'ext-panel';
+  const [n1, n2] = rowTeamLabels(m);
+
+  if (x.state === 'pre') {
+    let html = '';
+    if (x.odds1 && x.oddsX && x.odds2) {
+      html += `<div class="ext-sec-title">${T('oddsTitle')}</div>
+        <div class="ext-odds">
+          <div class="odds-cell"><span class="odds-team">${n1}</span><span class="odds-val">${x.odds1}</span></div>
+          <div class="odds-cell"><span class="odds-team">${T('draw')}</span><span class="odds-val">${x.oddsX}</span></div>
+          <div class="odds-cell"><span class="odds-team">${n2}</span><span class="odds-val">${x.odds2}</span></div>
+        </div>`;
+    }
+    if (x.form1 || x.form2) {
+      html += `<div class="ext-sec-title">${T('formTitle')}</div><div class="ext-form">`;
+      if (x.form1) html += `<div class="form-row"><span>${n1}</span>${formHtml(x.form1)}</div>`;
+      if (x.form2) html += `<div class="form-row"><span>${n2}</span>${formHtml(x.form2)}</div>`;
+      html += `</div>`;
+    }
+    if (!html) return null;
+    panel.innerHTML = html;
+    return panel;
+  }
+
+  // live or finished — scorers first
+  const g1 = goalsHtml(x.goals1), g2 = goalsHtml(x.goals2);
+  let html = `<div class="ext-sec-title">${T('scorersTitle')}</div>`;
+  html += (g1 || g2)
+    ? `<div class="ext-scorers"><div class="ext-col">${g1}</div><div class="ext-col">${g2}</div></div>`
+    : `<div class="ext-nogoals">${T('noGoals')}</div>`;
+  panel.innerHTML = html;
+
+  if (x.state === 'in') {
+    if (x.pos1 && x.pos2) {
+      panel.insertAdjacentHTML('beforeend', `
+        <div class="ext-sec-title">${T('possession')}</div>
+        <div class="ext-pos"><span>${Math.round(x.pos1)}%</span><div class="pos-bar"><div class="pos-fill" style="width:${x.pos1}%"></div></div><span>${Math.round(x.pos2)}%</span></div>`);
+    }
+    if (!isKnockoutRow(m)) {
+      panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
+    }
+  }
+  return panel;
 }
 
 async function loadData() {
@@ -439,7 +599,9 @@ async function loadData() {
   const matches = await res.json();
   // Live scores are best-effort — the schedule must still load if ESPN is down
   try {
-    applyScores(matches, await loadScores());
+    const scores = await loadScores();
+    applyScores(matches, scores);
+    TOP_SCORERS = computeTopScorers(scores);
   } catch (e) {
     console.warn('Live scores unavailable:', e);
   }
@@ -785,12 +947,24 @@ async function init() {
       const stageBadge = ko  ? `<span class="badge stage">${tStage(m.group)}</span>` : T('groupLabel', m.group);
       const qualBadge  = qual ? `<span class="badge">${T('meetsCriteria')}</span>` : '';
       const finishedBadge = played ? `<span class="badge finished">${T('finished')}</span>` : '';
-      const liveBadge = live ? `<span class="badge live">${T('live')}</span>` : '';
+      const liveClock = live && m.ext?.clock ? ' · ' + m.ext.clock : '';
+      const liveBadge = live ? `<span class="badge live" dir="ltr">${T('live')}${liveClock}</span>` : '';
 
       const starSymbol = qual ? '⭐' : (top ? '●' : '');
 
-      // A live group-stage match expands to its group standings on click
-      const expandable = live && !ko;
+      // Red card marker next to the offending team's name while the match is live
+      let teamsHtml = tMatchString(m.match);
+      if (live && m.ext && (m.ext.reds1 || m.ext.reds2)) {
+        const i = teamsHtml.indexOf(' - ');
+        if (i > -1) {
+          const rc = n => '<span class="red-card"></span>'.repeat(n || 0);
+          teamsHtml = teamsHtml.slice(0, i) + rc(m.ext.reds1) + ' - ' + teamsHtml.slice(i + 3) + rc(m.ext.reds2);
+        }
+      }
+
+      // Every row with ESPN data expands to a details slider
+      const panel = buildExtPanel(m, MATCHES);
+      const expandable = !!panel;
       const expKey = m.date + '@' + m.match;
       const isOpen = expandable && expandedLive.has(expKey);
       if (expandable) {
@@ -802,7 +976,7 @@ async function init() {
       d.innerHTML = `
         <div class="star">${starSymbol}</div>
         <div class="m-info">
-          <div class="m-teams">${tMatchString(m.match)}</div>
+          <div class="m-teams">${teamsHtml}</div>
           <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}${liveBadge}</div>
         </div>
         ${rightCol}
@@ -815,7 +989,7 @@ async function init() {
         exp.className = 'm-expand' + (isOpen ? ' open' : '');
         const inner = document.createElement('div');
         inner.className = 'm-expand-inner';
-        inner.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
+        inner.appendChild(panel);
         exp.appendChild(inner);
         group.appendChild(exp);
       }
@@ -851,6 +1025,60 @@ async function init() {
     openWin.addEventListener('click', show);
     closeWin.addEventListener('click', hide);
     winModal.addEventListener('click', e => { if (e.target === winModal) hide(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+  }
+
+  // Top-teams info modal — opened from the "טופ נבחרות" hint link
+  const topModal = document.getElementById('topModal');
+  const openTop = document.getElementById('openTopInfo');
+  const closeTop = document.getElementById('closeTopInfo');
+  if (topModal && openTop) {
+    const show = () => {
+      const seen = new Set();
+      const names = TOP.filter(t => {
+        const en = TEAM_EN[t] || t;
+        if (seen.has(en)) return false;
+        seen.add(en);
+        return true;
+      });
+      document.getElementById('topModalBody').innerHTML =
+        names.map(t => `<div class="legend-line">⭐ ${tTeam(t)}</div>`).join('');
+      topModal.hidden = false;
+    };
+    const hide = () => { topModal.hidden = true; };
+    openTop.addEventListener('click', show);
+    closeTop.addEventListener('click', hide);
+    topModal.addEventListener('click', e => { if (e.target === topModal) hide(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+  }
+
+  // Golden-boot modal — opened by clicking a scorer's name in a row panel.
+  // Shows the top 4 plus the clicked player at his rank (or the top 5 if he's in it).
+  const scorerModal = document.getElementById('scorerModal');
+  const closeScorer = document.getElementById('closeScorerModal');
+  if (scorerModal) {
+    const hide = () => { scorerModal.hidden = true; };
+    els.list.addEventListener('click', e => {
+      const btn = e.target.closest('.scorer-link');
+      if (!btn || !TOP_SCORERS.length) return;
+      e.stopPropagation();
+      const pid = btn.dataset.pid;
+      const idx = TOP_SCORERS.findIndex(p => p.id === pid);
+      if (idx === -1) return;
+      const rank = p => 1 + TOP_SCORERS.filter(q => q.goals > p.goals).length;
+      const shown = idx < 5
+        ? TOP_SCORERS.slice(0, 5)
+        : [...TOP_SCORERS.slice(0, 4), TOP_SCORERS[idx]];
+      document.getElementById('scorerModalBody').innerHTML = shown.map(p => `
+        <div class="sc-row${p.id === pid ? ' sc-me' : ''}">
+          <span class="sc-rank">${rank(p)}</span>
+          <span class="sc-name">${TEAM_FLAG[p.team] || ''} ${p.player}</span>
+          <span class="sc-goals">${p.goals} ⚽</span>
+        </div>`).join('');
+      scorerModal.hidden = false;
+    });
+    closeScorer.addEventListener('click', hide);
+    scorerModal.addEventListener('click', e => { if (e.target === scorerModal) hide(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
   }
 

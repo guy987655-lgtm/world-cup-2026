@@ -20,7 +20,7 @@
       <div class="toggle-row">
         <div>
           <label for="filterQualify" data-i18n="onlyQualify">רק משחקים שעומדים בתנאים ⭐</label>
-          <div class="hint"><span data-i18n="qualifyHint">טופ נבחרות</span> + <button type="button" id="openWindowInfo" class="link-btn" data-i18n="windowLink">חלון שעות לילדים</button></div>
+          <div class="hint"><button type="button" id="openTopInfo" class="link-btn" data-i18n="qualifyHint">טופ נבחרות</button> + <button type="button" id="openWindowInfo" class="link-btn" data-i18n="windowLink">חלון שעות לילדים</button></div>
         </div>
         <label class="switch"><input type="checkbox" id="filterQualify"><span class="slider"></span></label>
       </div>
@@ -61,6 +61,20 @@
         <div class="win-row"><span data-i18n="winFri">שישי</span><span>12:00–23:00</span></div>
         <div class="win-row"><span data-i18n="winSat">שבת</span><span>07:00–21:00</span></div>
       </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="topModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="topModalTitle">
+      <button type="button" class="modal-close" id="closeTopInfo" aria-label="סגור">✕</button>
+      <h3 id="topModalTitle" data-i18n="topModalTitle">נבחרות הטופ</h3>
+      <div class="modal-body" id="topModalBody"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="scorerModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scorerModalTitle">
+      <button type="button" class="modal-close" id="closeScorerModal" aria-label="סגור">✕</button>
+      <h3 id="scorerModalTitle" data-i18n="scorerModalTitle">מלך השערים</h3>
+      <div class="modal-body" id="scorerModalBody"></div>
     </div>
   </div>
   <div class="modal-overlay" id="tzModal" hidden>
