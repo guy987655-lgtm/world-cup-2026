@@ -63,7 +63,7 @@ const STR = {
     refresh: 'רענן תוצאות', refreshing: 'מעדכן...', refreshed: 'עודכן', refreshErr: 'שגיאה',
     timeTBD: 'שעה טרם נקבעה',
     group: 'בית',
-    meetsCriteria: 'עומד בתנאים', finished: 'סיום',
+    meetsCriteria: 'עומד בתנאים', finished: 'סיום', live: 'LIVE',
     noMatches: 'אין משחקים שעונים על הסינון 🤷',
     note: '🔒 שמות הנבחרות במשחקי הנוקאאוט (מ-28 ביוני) יתעדכנו לאחר סיום שלב הבתים. השעות כבר סופיות.',
     legend: '⭐ = נבחרת טופ שעומדת בחלון השעות · פס צהוב = משתתפת נבחרת טופ<br>מסגרת ירוקה = עומד בכל התנאים<br><b>חלון השעות:</b> א\'–ה\' 14:00–21:00 · שישי 12:00–23:00 · שבת 07:00–21:00',
@@ -94,7 +94,7 @@ const STR = {
     refresh: 'Refresh', refreshing: 'Updating...', refreshed: 'Updated', refreshErr: 'Error',
     timeTBD: 'Time TBD',
     group: 'Group',
-    meetsCriteria: 'Meets criteria', finished: 'Final',
+    meetsCriteria: 'Meets criteria', finished: 'Final', live: 'LIVE',
     noMatches: 'No matches match the filter 🤷',
     note: '🔒 Knockout team names (from June 28) will be set after the group stage. Times are final.',
     legend: '⭐ = Top team in the time window · Yellow bar = top team playing<br>Green border = meets all criteria<br><b>Time window:</b> Sun–Thu 14:00–21:00 · Fri 12:00–23:00 · Sat 07:00–21:00',
@@ -355,10 +355,95 @@ function scrollToNearestDate(targetDate) {
   window.scrollTo({ top: Math.max(0, y), behavior: 'instant' });
 }
 
+// ── Live scores via ESPN's public World Cup scoreboard API ──
+const SCORES_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260611-20260719&limit=250';
+// ESPN naming differs from our TEAM_EN values for a handful of teams
+const ESPN_ALIAS = {
+  'Czechia': 'Czech Republic',
+  'Bosnia-Herzegovina': 'Bosnia & Herzegovina',
+  'Congo DR': 'DR Congo',
+  'Ivory Coast': "Côte d'Ivoire",
+  'United States': 'USA',
+  'Türkiye': 'Turkey',
+};
+// English → Hebrew (first spelling wins for duplicate Hebrew variants)
+const TEAM_HE = {};
+for (const [he, en] of Object.entries(TEAM_EN)) if (!TEAM_HE[en]) TEAM_HE[en] = he;
+
+const HE_MONTH = { 6: 'ביוני', 7: 'ביולי' };
+// ESPN reports UTC; our date/time keys are Israel time (UTC+3 throughout June–July 2026)
+function espnIlDateTime(utcIso) {
+  const d = new Date(new Date(utcIso).getTime() + 3 * 3600 * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return {
+    date: `${pad(d.getUTCDate())} ${HE_MONTH[d.getUTCMonth() + 1]}`,
+    time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`,
+  };
+}
+
+async function loadScores() {
+  const res = await fetch(SCORES_URL);
+  if (!res.ok) throw new Error('Scores network error: ' + res.status);
+  const data = await res.json();
+  return (data.events || []).map(e => {
+    const comp = e.competitions[0];
+    const home = comp.competitors.find(c => c.homeAway === 'home');
+    const away = comp.competitors.find(c => c.homeAway === 'away');
+    const norm = n => ESPN_ALIAS[n] || n;
+    return {
+      ...espnIlDateTime(e.date),
+      state: e.status?.type?.state, // 'pre' | 'in' | 'post'
+      homeEn: norm(home.team.displayName),
+      awayEn: norm(away.team.displayName),
+      homeScore: home.score,
+      awayScore: away.score,
+    };
+  });
+}
+
+// Merge live/final scores into the schedule rows (mutates matches in place).
+// Group matches are matched by team pair + date; knockout matches by their
+// unique date+time slot (verified unique across the whole bracket).
+function applyScores(matches, scores) {
+  const byPair = new Map(), byDt = new Map();
+  scores.forEach(s => {
+    byPair.set([s.homeEn, s.awayEn].sort().join('|') + '@' + s.date, s);
+    byDt.set(s.date + '@' + s.time, s);
+  });
+  matches.forEach(m => {
+    let s, flip = false;
+    if (isKnockoutRow(m)) {
+      s = byDt.get(m.date + '@' + m.time);
+      // Once the bracket resolves, ESPN carries real team names — show them
+      // instead of the "מנצחת משחק X" placeholders (ESPN home-away order)
+      if (s && TEAM_HE[s.homeEn] && TEAM_HE[s.awayEn]) {
+        const prefix = m.match.match(/^(משחק [^:]+: )/);
+        m.match = (prefix ? prefix[1] : '') + TEAM_HE[s.homeEn] + ' - ' + TEAM_HE[s.awayEn];
+      }
+    } else {
+      const en = teamsOf(m).map(t => TEAM_EN[t]);
+      if (en[0] && en[1]) {
+        s = byPair.get(en.slice().sort().join('|') + '@' + m.date);
+        if (s) flip = en[0] !== s.homeEn; // keep score in the row's team order
+      }
+    }
+    if (!s || s.state === 'pre') return;
+    m.score = flip ? `${s.awayScore}-${s.homeScore}` : `${s.homeScore}-${s.awayScore}`;
+    m.live = s.state === 'in';
+  });
+}
+
 async function loadData() {
   const res = await fetch('/data/matches.json?t=' + Date.now());
   if (!res.ok) throw new Error('Network error: ' + res.status);
-  return await res.json();
+  const matches = await res.json();
+  // Live scores are best-effort — the schedule must still load if ESPN is down
+  try {
+    applyScores(matches, await loadScores());
+  } catch (e) {
+    console.warn('Live scores unavailable:', e);
+  }
+  return matches;
 }
 
 
@@ -632,16 +717,20 @@ async function init() {
       return true;
     });
 
-    const playedCount = rows.filter(m => m.score).length;
+    const playedCount = rows.filter(m => m.score && !m.live).length;
     const notPlayedCount = rows.length - playedCount;
     els.count.textContent = `${T('played')}: ${playedCount} · ${T('notPlayed')}: ${notPlayedCount}`;
     updateClearBtn();
     els.list.innerHTML = '';
 
-    // Show standings table when a specific group stage (not knockout) is selected
+    // Show standings table when a specific group stage (not knockout) is selected,
+    // or when a specific team is selected (its group's table)
     const selGroup = els.stage.value;
     if (selGroup && !KNOCKOUT.has(selGroup)) {
       els.list.appendChild(buildStandingsTable(calcStandings(selGroup, MATCHES), selGroup));
+    } else if (els.team.value && els.team.value !== '__TOP__') {
+      const gm = MATCHES.find(m => !isKnockoutRow(m) && teamsOf(m).includes(els.team.value));
+      if (gm) els.list.appendChild(buildStandingsTable(calcStandings(gm.group, MATCHES), gm.group));
     }
 
     if (rows.length === 0) {
@@ -676,11 +765,12 @@ async function init() {
       const qual = qualifies(m);
 
       const d = document.createElement('div');
-      const played = !!m.score;
-      d.className = 'match' + (top ? ' top10' : '') + (qual ? ' qualifies' : '') + (nt && !played ? ' notime' : '') + (played ? ' played' : '');
+      const live = !!m.live;
+      const played = !!m.score && !live;
+      d.className = 'match' + (top ? ' top10' : '') + (qual ? ' qualifies' : '') + (nt && !played ? ' notime' : '') + (played ? ' played' : '') + (live ? ' live' : '');
 
       let rightCol;
-      if (played) {
+      if (m.score) {
         rightCol = `<div class="m-score">${m.score}</div>`;
       } else if (nt) {
         rightCol = `<div class="m-time tbd-t">${T('timeTBD')}</div>`;
@@ -691,6 +781,7 @@ async function init() {
       const stageBadge = ko  ? `<span class="badge stage">${tStage(m.group)}</span>` : T('groupLabel', m.group);
       const qualBadge  = qual ? `<span class="badge">${T('meetsCriteria')}</span>` : '';
       const finishedBadge = played ? `<span class="badge finished">${T('finished')}</span>` : '';
+      const liveBadge = live ? `<span class="badge live">${T('live')}</span>` : '';
 
       const starSymbol = qual ? '⭐' : (top ? '●' : '');
 
@@ -698,7 +789,7 @@ async function init() {
         <div class="star">${starSymbol}</div>
         <div class="m-info">
           <div class="m-teams">${tMatchString(m.match)}</div>
-          <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}</div>
+          <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}${liveBadge}</div>
         </div>
         ${rightCol}
       `;
@@ -737,7 +828,11 @@ async function init() {
   }
   const SUCCESS_MS = 5 * 60 * 1000; // keep the ✓ visible for 5 minutes
   let refreshTimer = null;
-  els.btn.addEventListener('click', async () => {
+  function markRefreshed() {
+    setRefreshState('refreshed');
+    refreshTimer = setTimeout(() => { setRefreshState('refresh'); refreshTimer = null; }, SUCCESS_MS);
+  }
+  async function doRefresh() {
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     els.btn.disabled = true;
     setRefreshState('refreshing');
@@ -749,14 +844,33 @@ async function init() {
       rebuildDropdowns();
       render();
       els.btn.disabled = false;
-      setRefreshState('refreshed');
-      refreshTimer = setTimeout(() => { setRefreshState('refresh'); refreshTimer = null; }, SUCCESS_MS);
+      markRefreshed();
     } catch (e) {
       console.error(e);
       setRefreshState('refreshErr');
       refreshTimer = setTimeout(() => { setRefreshState('refresh'); els.btn.disabled = false; refreshTimer = null; }, 2000);
     }
+  }
+  els.btn.addEventListener('click', doRefresh);
+  // The page load itself fetched fresh data — reflect that with the ✓ state
+  markRefreshed();
+  // Re-fetch fresh results whenever the user returns to the tab/app
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') doRefresh();
   });
+  // Silent background poll — keeps live scores ticking without touching the button
+  setInterval(async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const data = await loadData();
+      if (Array.isArray(data) && data.length > 0) {
+        MATCHES = data;
+        render();
+      }
+    } catch (e) {
+      console.warn('Background score update failed:', e);
+    }
+  }, 60 * 1000);
 
   // Window labels — adapt to weekend convention of selected tz
   function getWindowLabels() {
