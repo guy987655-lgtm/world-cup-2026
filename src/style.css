@@ -200,7 +200,7 @@ select {
 .m-chevron {
   flex-shrink: 0;
   color: #9fd6bf;
-  font-size: .8rem;
+  font-size: 1.2rem;
   transition: transform .3s;
 }
 .match.open .m-chevron { transform: rotate(180deg); }
