@@ -69,6 +69,7 @@ const STR = {
     meetsCriteria: 'עומד בתנאים', finished: 'סיום', live: 'LIVE',
     scorersTitle: 'כובשים', noGoals: 'ללא שערים', possession: 'אחזקת כדור',
     oddsTitle: 'יחס הימורים', draw: 'תיקו', formTitle: 'כושר אחרון',
+    projLabel: 'מצב נוכחי:',
     pen: 'פנדל', ownGoal: 'שער עצמי',
     topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
     collapseAll: 'סגור הכל',
@@ -105,6 +106,7 @@ const STR = {
     meetsCriteria: 'Meets criteria', finished: 'Final', live: 'LIVE',
     scorersTitle: 'Scorers', noGoals: 'No goals', possession: 'Possession',
     oddsTitle: 'Odds', draw: 'Draw', formTitle: 'Recent form',
+    projLabel: 'Currently:',
     pen: 'pen.', ownGoal: 'own goal',
     topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
     collapseAll: 'Collapse all',
@@ -181,12 +183,10 @@ function tMatchPart(s) {
   return TEAM_EN[s] || s;
 }
 function tMatchString(s) {
+  // The "משחק N:" prefix is data-only (used for bracket cross-references) —
+  // never shown to the user
+  s = s.replace(/^משחק \d+( \(הגמר!\))?: /, '');
   if (lang === 'he') return s;
-  const ko = s.match(/^משחק (\d+)( \(הגמר!\))?: (.+)$/);
-  if (ko) {
-    const [, num, final, rest] = ko;
-    return `Match ${num}${final ? ' (Final!)' : ''}: ${rest.split(' - ').map(tMatchPart).join(' - ')}`;
-  }
   return s.split(' - ').map(tMatchPart).join(' - ');
 }
 
@@ -269,6 +269,70 @@ function buildStandingsTable(standings, group) {
     </table>
   `;
   return wrap;
+}
+
+// ── Round-of-32 snapshot projection ─────────────────────────────────────
+// Who would fill each bracket placeholder if the group stage ended right now.
+const GROUP_IDS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+function buildProjection(MATCHES) {
+  const standings = {};
+  GROUP_IDS.forEach(g => { standings[g] = calcStandings(g, MATCHES); });
+  // Third-placed teams ranked by the official criteria (pts, gd, gf)
+  const thirds = GROUP_IDS
+    .map(g => standings[g][2] && { group: g, ...standings[g][2] })
+    .filter(Boolean)
+    .sort((a, b) =>
+      b.pts - a.pts || b.gd - a.gd || b.gf - a.gf ||
+      (SEED[a.name] || 99) - (SEED[b.name] || 99)
+    );
+  const slots = [];
+  MATCHES.forEach(m => {
+    if (m.group !== '32 הגדולות') return;
+    m.match.replace(/^משחק \d+: /, '').split(' - ').forEach(part => {
+      const mm = part.trim().match(/^מקום 3 מבתים (.+)$/);
+      if (mm) slots.push({ key: part.trim(), groups: mm[1].split('/') });
+    });
+  });
+  return { standings, thirdSlots: allocateThirds(slots, thirds) };
+}
+
+// Assign the best third-placed teams to the bracket slots that accept their
+// group (bipartite matching; the pool grows past 8 only if the top 8 can't
+// cover every slot)
+function allocateThirds(slots, thirds) {
+  for (let size = Math.min(slots.length, thirds.length); size <= thirds.length; size++) {
+    const pool = thirds.slice(0, size);
+    const slotByThird = new Array(pool.length).fill(-1);
+    const thirdBySlot = new Array(slots.length).fill(-1);
+    const augment = (si, seen) => {
+      for (let ti = 0; ti < pool.length; ti++) {
+        if (seen[ti] || !slots[si].groups.includes(pool[ti].group)) continue;
+        seen[ti] = true;
+        if (slotByThird[ti] === -1 || augment(slotByThird[ti], seen)) {
+          slotByThird[ti] = si;
+          thirdBySlot[si] = ti;
+          return true;
+        }
+      }
+      return false;
+    };
+    if (slots.every((_, si) => augment(si, new Array(pool.length).fill(false)))) {
+      const map = {};
+      slots.forEach((s, si) => { map[s.key] = pool[thirdBySlot[si]].name; });
+      return map;
+    }
+  }
+  return {};
+}
+
+function projectedTeam(part, proj) {
+  part = part.trim();
+  let m;
+  if (m = part.match(/^מנצחת בית ([A-L])$/)) return proj.standings[m[1]]?.[0]?.name;
+  if (m = part.match(/^סגנית בית ([A-L])$/)) return proj.standings[m[1]]?.[1]?.name;
+  if (/^מקום 3 מבתים /.test(part)) return proj.thirdSlots[part];
+  return null;
 }
 
 const DOW = {
@@ -620,7 +684,11 @@ function rowTeamLabels(m) {
 
 const FORM_HE = { W: 'נ', D: 'ת', L: 'ה' };
 function formHtml(f) {
-  return `<span class="f-letters" dir="ltr">${f.split('').map(c => `<span class="f-${c}">${lang === 'he' ? (FORM_HE[c] || c) : c}</span>`).join('')}</span>`;
+  // ESPN form is newest-first; we want oldest-first in logical order, so
+  // the bidi renderer puts the newest at the reading-direction end in both
+  // languages: leftmost in Hebrew (RTL letters), rightmost in English
+  const chars = f.split('');
+  return `<span class="f-letters" dir="ltr">${chars.map(c => `<span class="f-${c}">${lang === 'he' ? (FORM_HE[c] || c) : c}</span>`).join('')}</span>`;
 }
 
 function goalsHtml(goals) {
@@ -653,7 +721,8 @@ function buildExtPanel(m, MATCHES) {
         </div>`;
     }
     if (x.form1 || x.form2) {
-      html += `<div class="ext-sec-title">${T('formTitle')}</div><div class="ext-form">`;
+      const formDir = `<div class="form-dir" dir="ltr" style="text-align:${lang === 'he' ? 'left' : 'right'}">${lang === 'he' ? '─────►' : '◄─────'}</div>`;
+      html += `<div class="ext-sec-title">${T('formTitle')}</div>${formDir}<div class="ext-form">`;
       if (x.form1) html += `<div class="form-row"><span>${n1}</span>${formHtml(x.form1)}</div>`;
       if (x.form2) html += `<div class="form-row"><span>${n2}</span>${formHtml(x.form2)}</div>`;
       html += `</div>`;
@@ -998,6 +1067,8 @@ async function init() {
     }
 
     let curDay = null, group = null;
+    let proj = null; // built lazily — only when an unresolved R32 row is rendered
+
     rows.forEach(m => {
       const conv = matchInTz(m);
       const displayDate = conv.date;
@@ -1055,6 +1126,18 @@ async function init() {
         }
       }
 
+      // Snapshot of who would fill the R32 placeholders if the group stage
+      // ended right now (disappears once ESPN swaps in the real names)
+      let projHtml = '';
+      if (m.group === '32 הגדולות') {
+        proj = proj || buildProjection(MATCHES);
+        const sides = m.match.replace(/^משחק \d+: /, '').split(' - ')
+          .map(p => projectedTeam(p, proj));
+        if (sides[0] && sides[1]) {
+          projHtml = `<div class="m-proj">${T('projLabel')} ${tTeam(sides[0])} - ${tTeam(sides[1])}</div>`;
+        }
+      }
+
       // Every row with ESPN data expands to a details slider
       const panel = buildExtPanel(m, MATCHES);
       const expandable = !!panel;
@@ -1070,6 +1153,7 @@ async function init() {
         <div class="star">${starSymbol}</div>
         <div class="m-info">
           <div class="m-teams">${teamsHtml}</div>
+          ${projHtml}
           <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}${liveBadge}</div>
         </div>
         ${rightCol}
