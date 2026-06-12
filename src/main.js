@@ -1026,7 +1026,10 @@ async function init() {
 
       let rightCol;
       if (m.score) {
-        rightCol = `<div class="m-score">${m.score}</div>`;
+        // In RTL the first team sits on the right, so flip the digits to keep
+        // each team's goals visually adjacent to its name
+        const dispScore = lang === 'he' ? m.score.split('-').reverse().join('-') : m.score;
+        rightCol = `<div class="m-score" dir="ltr">${dispScore}</div>`;
       } else if (nt) {
         rightCol = `<div class="m-time tbd-t">${T('timeTBD')}</div>`;
       } else {
