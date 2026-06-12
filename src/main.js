@@ -618,8 +618,9 @@ function rowTeamLabels(m) {
   return i > -1 ? [s.slice(0, i), s.slice(i + 3)] : [s, ''];
 }
 
+const FORM_HE = { W: 'נ', D: 'ת', L: 'ה' };
 function formHtml(f) {
-  return `<span class="f-letters" dir="ltr">${f.split('').map(c => `<span class="f-${c}">${c}</span>`).join('')}</span>`;
+  return `<span class="f-letters" dir="ltr">${f.split('').map(c => `<span class="f-${c}">${lang === 'he' ? (FORM_HE[c] || c) : c}</span>`).join('')}</span>`;
 }
 
 function goalsHtml(goals) {

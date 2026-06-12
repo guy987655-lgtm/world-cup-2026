@@ -281,7 +281,7 @@ select {
 }
 .f-letters { letter-spacing: 2px; font-weight: 800; font-size: .8rem; }
 .f-W { color: #2ecc71; }
-.f-D { color: #9fd6bf; }
+.f-D { color: #f1c40f; }
 .f-L { color: #e74c3c; }
 .ext-scorers { display: flex; gap: 10px; margin-bottom: 8px; }
 .ext-col { flex: 1; min-width: 0; }
