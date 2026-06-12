@@ -70,6 +70,7 @@ const STR = {
     scorersTitle: 'כובשים', noGoals: 'ללא שערים', possession: 'אחזקת כדור',
     oddsTitle: 'יחס הימורים', draw: 'תיקו', formTitle: 'כושר אחרון',
     projLabel: 'מצב נוכחי:',
+    oddsUpdated: s => `עודכן לפני ${s} שנ'`,
     pen: 'פנדל', ownGoal: 'שער עצמי',
     topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
     collapseAll: 'סגור הכל',
@@ -107,6 +108,7 @@ const STR = {
     scorersTitle: 'Scorers', noGoals: 'No goals', possession: 'Possession',
     oddsTitle: 'Odds', draw: 'Draw', formTitle: 'Recent form',
     projLabel: 'Currently:',
+    oddsUpdated: s => `updated ${s}s ago`,
     pen: 'pen.', ownGoal: 'own goal',
     topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
     collapseAll: 'Collapse all',
@@ -605,6 +607,10 @@ async function loadScores() {
       oddsHome: amToDec(ml?.home?.close?.odds),
       oddsDraw: amToDec(ml?.draw?.close?.odds),
       oddsAway: amToDec(ml?.away?.close?.odds),
+      // In-play odds — DraftKings keeps updating `current` while the match runs
+      oddsHomeLive: amToDec(ml?.home?.current?.odds),
+      oddsDrawLive: amToDec(ml?.draw?.current?.odds),
+      oddsAwayLive: amToDec(ml?.away?.current?.odds),
     };
   });
 }
@@ -652,6 +658,9 @@ function applyScores(matches, scores) {
       odds1: A ? s.oddsHome : s.oddsAway,
       oddsX: s.oddsDraw,
       odds2: A ? s.oddsAway : s.oddsHome,
+      odds1Live: A ? s.oddsHomeLive : s.oddsAwayLive,
+      oddsXLive: s.oddsDrawLive,
+      odds2Live: A ? s.oddsAwayLive : s.oddsHomeLive,
     };
     if (s.state === 'pre') return;
     m.score = flip ? `${s.awayScore}-${s.homeScore}` : `${s.homeScore}-${s.awayScore}`;
@@ -662,6 +671,7 @@ function applyScores(matches, scores) {
 // Tournament golden-boot table, aggregated from every goal event ESPN reports
 // (own goals excluded). Refreshed on each data load.
 let TOP_SCORERS = [];
+let SCORES_AT = null; // when the last successful ESPN fetch landed
 function computeTopScorers(scores) {
   const byId = {};
   scores.forEach(s => s.goals.forEach(g => {
@@ -745,6 +755,16 @@ function buildExtPanel(m, MATCHES) {
       <div class="ext-sec-title">${T('possession')}</div>
       <div class="ext-pos"><span>${Math.round(x.pos1)}%</span><div class="pos-bar"><div class="pos-fill" style="width:${x.pos1}%"></div></div><span>${Math.round(x.pos2)}%</span></div>`);
   }
+  // In-play odds, refreshed with every data reload
+  if (x.state === 'in' && x.odds1Live && x.oddsXLive && x.odds2Live) {
+    panel.insertAdjacentHTML('beforeend', `
+      <div class="ext-sec-title">${T('oddsTitle')} <span class="badge live">${T('live')}</span> <span class="odds-updated">${SCORES_AT ? T('oddsUpdated', Math.max(0, Math.round((Date.now() - SCORES_AT) / 1000))) : ''}</span></div>
+      <div class="ext-odds">
+        <div class="odds-cell"><span class="odds-team">${n1}</span><span class="odds-val">${x.odds1Live}</span></div>
+        <div class="odds-cell"><span class="odds-team">${T('draw')}</span><span class="odds-val">${x.oddsXLive}</span></div>
+        <div class="odds-cell"><span class="odds-team">${n2}</span><span class="odds-val">${x.odds2Live}</span></div>
+      </div>`);
+  }
   // Group standings shown for both live and finished group-stage matches
   if (!isKnockoutRow(m)) {
     panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
@@ -761,6 +781,7 @@ async function loadData() {
     const scores = await loadScores();
     applyScores(matches, scores);
     TOP_SCORERS = computeTopScorers(scores);
+    SCORES_AT = Date.now();
   } catch (e) {
     console.warn('Live scores unavailable:', e);
   }
@@ -1327,6 +1348,12 @@ async function init() {
       console.warn('Background score update failed:', e);
     }
   }, 60 * 1000);
+  // Freshness stamp next to the live-odds title, ticking once a second
+  setInterval(() => {
+    if (!SCORES_AT) return;
+    const s = Math.max(0, Math.round((Date.now() - SCORES_AT) / 1000));
+    document.querySelectorAll('.odds-updated').forEach(el => { el.textContent = T('oddsUpdated', s); });
+  }, 1000);
 
   // Window labels — adapt to weekend convention of selected tz
   function getWindowLabels() {

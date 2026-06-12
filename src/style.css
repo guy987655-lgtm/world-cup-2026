@@ -210,6 +210,7 @@ select {
 .m-teams { font-size: .98rem; font-weight: 600; }
 .m-meta { font-size: .75rem; color: #9fd6bf; margin-top: 2px; }
 .m-proj { font-size: .78rem; color: #f4d35e; font-style: italic; margin-top: 2px; }
+.odds-updated { font-size: .68rem; color: #9fd6bf; font-weight: 400; margin-inline-start: 4px; }
 .m-time { font-size: 1.05rem; font-weight: 700; color: #fff; flex-shrink: 0; }
 .m-time.tbd-t { font-size: .78rem; color: #9fd6bf; font-weight: 600; }
 .badge { display: inline-block; font-size: .65rem; background: #27ae60; color: #fff; border-radius: 4px; padding: 1px 6px; margin-inline-start: 6px; vertical-align: middle; }
