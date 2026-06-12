@@ -108,6 +108,29 @@ select {
 .refresh-fab.scrolled { padding: 8px; border-radius: 50%; }
 .refresh-fab.scrolled .r-text { display: none; }
 .refresh-fab.fab-hidden { opacity: 0; pointer-events: none; }
+.collapse-fab {
+  position: fixed;
+  top: 48px;
+  left: 10px;
+  z-index: 200;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #3a6ea5;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-size: .76rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  transition: background .2s;
+}
+.collapse-fab:hover { background: #4a82bd; }
+.collapse-fab[hidden] { display: none; }
+.collapse-fab .c-icon { font-size: .9rem; line-height: 1; }
 .day-group { margin-bottom: 18px; }
 .day-header {
   font-size: 1rem; font-weight: 700; color: #ffd24a;

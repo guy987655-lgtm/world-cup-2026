@@ -68,6 +68,7 @@ const STR = {
     oddsTitle: 'יחס הימורים', draw: 'תיקו', formTitle: 'כושר אחרון',
     pen: 'פנדל', ownGoal: 'שער עצמי',
     topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
+    collapseAll: 'סגור הכל',
     noMatches: 'אין משחקים שעונים על הסינון 🤷',
     note: '🔒 שמות הנבחרות במשחקי הנוקאאוט (מ-28 ביוני) יתעדכנו לאחר סיום שלב הבתים. השעות כבר סופיות.',
     legend: '⭐ = נבחרת טופ שעומדת בחלון השעות · פס צהוב = משתתפת נבחרת טופ<br>מסגרת ירוקה = עומד בכל התנאים<br><b>חלון השעות:</b> א\'–ה\' 14:00–21:00 · שישי 12:00–23:00 · שבת 07:00–21:00',
@@ -103,6 +104,7 @@ const STR = {
     oddsTitle: 'Odds', draw: 'Draw', formTitle: 'Recent form',
     pen: 'pen.', ownGoal: 'own goal',
     topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
+    collapseAll: 'Collapse all',
     noMatches: 'No matches match the filter 🤷',
     note: '🔒 Knockout team names (from June 28) will be set after the group stage. Times are final.',
     legend: '⭐ = Top team in the time window · Yellow bar = top team playing<br>Green border = meets all criteria<br><b>Time window:</b> Sun–Thu 14:00–21:00 · Fri 12:00–23:00 · Sat 07:00–21:00',
@@ -403,6 +405,90 @@ const TEAM_FLAG = {
   'Cape Verde':'🇨🇻','New Zealand':'🇳🇿','South Africa':'🇿🇦','Curaçao':'🇨🇼',
 };
 
+// ── Latin → Hebrew transliteration of player names ──
+// Rules vary by the team's language so "Jiménez" (es) → חימנס while "Johnson" (en) → ג'ונסון
+const TEAM_LANG = {
+  'Spain':'es','Argentina':'es','Mexico':'es','Uruguay':'es','Colombia':'es',
+  'Ecuador':'es','Paraguay':'es','Panama':'es',
+  'Brazil':'pt','Portugal':'pt','Cape Verde':'pt',
+  'France':'fr','Haiti':'fr','Senegal':'fr',"Côte d'Ivoire":'fr','DR Congo':'fr',
+  'Germany':'de','Austria':'de','Switzerland':'de',
+  'Netherlands':'nl','Belgium':'nl','Curaçao':'nl',
+  'Morocco':'ar','Tunisia':'ar','Algeria':'ar','Egypt':'ar','Saudi Arabia':'ar',
+  'Qatar':'ar','Jordan':'ar','Iraq':'ar','Iran':'ar',
+}; // everything else falls back to 'en'
+
+const HE_FINAL = { 'מ':'ם', 'נ':'ן', 'צ':'ץ', 'פ':'ף', 'כ':'ך' };
+// Ordered: longest patterns first; optional third field restricts to languages
+const TRANS_RULES = [
+  ['tsch','טש','de'], ['sch','ש','de'],
+  ['ch',"צ'",'es en'], ['ch','ש','fr pt ar'], ['ch','כ','de nl'],
+  ['sh','ש'], ['th','ת'], ['ph','פ'], ['kh','ח'], ['gh','ג'], ['ck','ק'],
+  ['tz','צ'], ['ts','צ'],
+  ['ll','י','es'], ['ñ','ני'], ['ç','ס'],
+  ['ij','יי','nl'], ['eu','וי','de'], ['ei','יי','de nl'],
+  ['ou','ו','fr'], ['oo','ו','en'], ['ee','י','en nl'],
+  ['qu','ק'], ['q','ק'], ['x','קס'], ['w','ו'], ['v','ו'],
+  ['b','ב'], ['d','ד'], ['f','פ'], ['k','ק'], ['l','ל'], ['m','מ'],
+  ['n','נ'], ['p','פ'], ['r','ר'], ['s','ס'], ['t','ט'],
+  ['z','ס','es'], ['z','ז'],
+];
+
+function translitWord(raw, lg) {
+  let w = raw.normalize('NFD')
+    .replace(/ñ/g, 'ñ')
+    .replace(/ç/g, 'ç')
+    .replace(/é/g, 'é')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+  // Collapse doubled Latin letters, except digraphs that carry meaning per language
+  const keepDoubles = { es: ['ll'], en: ['ee', 'oo'], nl: ['ee'] };
+  w = w.replace(/(.)\1+/g, (m0, ch) => (keepDoubles[lg] || []).includes(ch + ch) ? ch + ch : ch);
+  let out = '';
+  let i = 0;
+  while (i < w.length) {
+    const start = i === 0;
+    const end = i === w.length - 1;
+    const rest = w.slice(i);
+    const nxt = w[i + 1] || '';
+    const c = w[i];
+    let matched = null, len = 1;
+    for (const [pat, heb, langs] of TRANS_RULES) {
+      if ((!langs || langs.includes(lg)) && rest.startsWith(pat)) { matched = heb; len = pat.length; break; }
+    }
+    if (matched !== null) { out += matched; i += len; continue; }
+    if (c === 'j') { out += ({ es: 'ח', pt: "ז'", fr: "ז'", de: 'י', nl: 'י' }[lg] || "ג'"); i++; continue; }
+    if (c === 'g') { out += ('eiy'.includes(nxt) && ({ es: 'ח', pt: "ז'", fr: "ז'" }[lg])) || 'ג'; i++; continue; }
+    if (c === 'c') { out += 'eiy'.includes(nxt) ? 'ס' : 'ק'; i++; continue; }
+    if (c === 'h') { if (!['es', 'fr', 'pt'].includes(lg)) out += 'ה'; i++; continue; }
+    if ('aeiouyé'.includes(c)) {
+      out += {
+        a: start ? 'א' : end ? 'ה' : 'א',
+        e: start ? 'א' : '',
+        i: start ? 'אי' : 'י',
+        o: start ? 'או' : 'ו',
+        u: start ? 'או' : 'ו',
+        y: 'י',
+        'é': start ? 'א' : end ? 'ה' : '',
+      }[c];
+      i++; continue;
+    }
+    i++; // unmapped char — drop
+  }
+  const last = out[out.length - 1];
+  if (out.length > 1 && HE_FINAL[last]) out = out.slice(0, -1) + HE_FINAL[last];
+  return out;
+}
+
+// Display name for a player: transliterated to Hebrew when the UI is Hebrew
+function pName(name, teamEn) {
+  if (lang !== 'he' || !name) return name;
+  const lg = TEAM_LANG[teamEn] || 'en';
+  return name.split(/([^a-zA-ZÀ-ɏ]+)/).map(part =>
+    /[a-zA-ZÀ-ɏ]/.test(part) ? translitWord(part, lg) : part
+  ).join('');
+}
+
 // American moneyline ("+165" / "-225") → decimal odds string ("2.65" / "1.44")
 function amToDec(s) {
   if (s === 'EVEN') return '2.00';
@@ -535,9 +621,10 @@ function formHtml(f) {
 
 function goalsHtml(goals) {
   return goals.map(g => {
+    const display = pName(g.player, g.teamEn);
     const name = g.playerId
-      ? `<button type="button" class="scorer-link" data-pid="${g.playerId}">${g.player}</button>`
-      : g.player;
+      ? `<button type="button" class="scorer-link" data-pid="${g.playerId}">${display}</button>`
+      : display;
     return `<div class="scorer">⚽ ${g.minute} ${name}${g.pk ? ` (${T('pen')})` : ''}${g.og ? ` (${T('ownGoal')})` : ''}</div>`;
   }).join('');
 }
@@ -580,15 +667,14 @@ function buildExtPanel(m, MATCHES) {
     : `<div class="ext-nogoals">${T('noGoals')}</div>`;
   panel.innerHTML = html;
 
-  if (x.state === 'in') {
-    if (x.pos1 && x.pos2) {
-      panel.insertAdjacentHTML('beforeend', `
-        <div class="ext-sec-title">${T('possession')}</div>
-        <div class="ext-pos"><span>${Math.round(x.pos1)}%</span><div class="pos-bar"><div class="pos-fill" style="width:${x.pos1}%"></div></div><span>${Math.round(x.pos2)}%</span></div>`);
-    }
-    if (!isKnockoutRow(m)) {
-      panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
-    }
+  if (x.state === 'in' && x.pos1 && x.pos2) {
+    panel.insertAdjacentHTML('beforeend', `
+      <div class="ext-sec-title">${T('possession')}</div>
+      <div class="ext-pos"><span>${Math.round(x.pos1)}%</span><div class="pos-bar"><div class="pos-fill" style="width:${x.pos1}%"></div></div><span>${Math.round(x.pos2)}%</span></div>`);
+  }
+  // Group standings shown for both live and finished group-stage matches
+  if (!isKnockoutRow(m)) {
+    panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
   }
   return panel;
 }
@@ -997,11 +1083,24 @@ async function init() {
 
     if (savedDate) requestAnimationFrame(() => scrollToNearestDate(savedDate));
     requestAnimationFrame(onScroll);
+    updateCollapseFab();
   }
 
   [els.q, els.team, els.stage].forEach(e => e.addEventListener('change', render));
 
-  // Toggle the group standings slider under a live match row
+  // Collapse-all FAB — appears once two or more row panels are open
+  const collapseAllBtn = document.getElementById('collapseAllBtn');
+  function updateCollapseFab() {
+    collapseAllBtn.hidden = document.querySelectorAll('.m-expand.open').length < 2;
+  }
+  collapseAllBtn.addEventListener('click', () => {
+    document.querySelectorAll('.m-expand.open').forEach(x => x.classList.remove('open'));
+    document.querySelectorAll('.match.expandable.open').forEach(x => x.classList.remove('open'));
+    expandedLive.clear();
+    updateCollapseFab();
+  });
+
+  // Toggle the details slider under a match row
   els.list.addEventListener('click', e => {
     const row = e.target.closest('.match.expandable');
     if (!row) return;
@@ -1011,6 +1110,7 @@ async function init() {
     row.classList.toggle('open', open);
     if (open) expandedLive.add(row.dataset.expKey);
     else expandedLive.delete(row.dataset.expKey);
+    updateCollapseFab();
   });
 
   // Time-window info modal — opened by clicking the hint link, closed via the ✕,
@@ -1072,7 +1172,7 @@ async function init() {
       document.getElementById('scorerModalBody').innerHTML = shown.map(p => `
         <div class="sc-row${p.id === pid ? ' sc-me' : ''}">
           <span class="sc-rank">${rank(p)}</span>
-          <span class="sc-name">${TEAM_FLAG[p.team] || ''} ${p.player}</span>
+          <span class="sc-name">${TEAM_FLAG[p.team] || ''} ${pName(p.player, p.team)}</span>
           <span class="sc-goals">${p.goals} ⚽</span>
         </div>`).join('');
       scorerModal.hidden = false;
