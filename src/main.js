@@ -74,6 +74,19 @@ const STR = {
     pen: 'פנדל', ownGoal: 'שער עצמי',
     topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
     collapseAll: 'סגור הכל',
+    playoffBtn: 'אזור הפלייאוף', playoffTitle: 'אזור הפלייאוף',
+    backToSchedule: 'חזרה לשלב הבתים',
+    playoffHint: 'לחצו על משחק עתידי כדי לראות הסתברויות יריבות',
+    playoffFilter: 'סינון לפי נבחרת',
+    scenCount: n => `מספר התרחישים: ${n}`,
+    pairFilter: 'מפגש בין', choose: 'בחר נבחרת', vsWord: 'מול',
+    meetChance: s => `סיכוי מפגש: ${s}%`,
+    probScenarios: 'תרחישי יריבות אפשריים',
+    probCurrent: 'מצב נוכחי', probCurrentHint: 'היריבות אם שלב הבתים יסתיים כעת',
+    probCalc: 'מחשב הסתברויות…', probDecided: 'המפגש כבר נקבע',
+    probVs: ' מול ', thirdPlaceTitle: 'מקום 3',
+    phWinnerGroup: g => `מנצחת ${g}`, phRunnerGroup: g => `סגנית ${g}`,
+    phThird: 'מקום 3', phWinnerMatch: n => `מנצחת מ׳ ${n}`, phLoserMatch: n => `מפסידה מ׳ ${n}`,
     noMatches: 'אין משחקים שעונים על הסינון 🤷',
     note: '🔒 שמות הנבחרות במשחקי הנוקאאוט (מ-28 ביוני) יתעדכנו לאחר סיום שלב הבתים. השעות כבר סופיות.',
     legend: '⭐ = נבחרת טופ שעומדת בחלון השעות · פס צהוב = משתתפת נבחרת טופ<br>מסגרת ירוקה = עומד בכל התנאים<br><b>חלון השעות:</b> א\'–ה\' 14:00–21:00 · שישי 12:00–23:00 · שבת 07:00–21:00',
@@ -112,6 +125,19 @@ const STR = {
     pen: 'pen.', ownGoal: 'own goal',
     topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
     collapseAll: 'Collapse all',
+    playoffBtn: 'Playoff Zone', playoffTitle: 'Playoff Zone',
+    backToSchedule: 'Back to group stage',
+    playoffHint: 'Tap a future match to see matchup probabilities',
+    playoffFilter: 'Filter by team',
+    scenCount: n => `Scenarios: ${n}`,
+    pairFilter: 'Matchup between', choose: 'Choose team', vsWord: 'vs',
+    meetChance: s => `Meeting chance: ${s}%`,
+    probScenarios: 'Possible matchup scenarios',
+    probCurrent: 'Current status', probCurrentHint: 'The matchup if the group stage ended now',
+    probCalc: 'Calculating…', probDecided: 'Matchup already decided',
+    probVs: ' vs ', thirdPlaceTitle: '3rd place',
+    phWinnerGroup: g => `Winner ${g}`, phRunnerGroup: g => `Runner-up ${g}`,
+    phThird: '3rd', phWinnerMatch: n => `Winner M${n}`, phLoserMatch: n => `Loser M${n}`,
     noMatches: 'No matches match the filter 🤷',
     note: '🔒 Knockout team names (from June 28) will be set after the group stage. Times are final.',
     legend: '⭐ = Top team in the time window · Yellow bar = top team playing<br>Green border = meets all criteria<br><b>Time window:</b> Sun–Thu 14:00–21:00 · Fri 12:00–23:00 · Sat 07:00–21:00',
@@ -212,6 +238,12 @@ const SEED = {
   "ניו זילנד":45,"דרום אפריקה":46,"קוראסאו":47
 };
 
+// Official-style ranking: points, then goal difference, then goals for, then seed
+function standingsCmp(a, b) {
+  return b.pts - a.pts || b.gd - a.gd || b.gf - a.gf ||
+         (SEED[a.name] || 99) - (SEED[b.name] || 99);
+}
+
 function calcStandings(group, MATCHES) {
   const gms = MATCHES.filter(m => m.group === group);
   const teams = {};
@@ -230,10 +262,7 @@ function calcStandings(group, MATCHES) {
   });
   return Object.entries(teams)
     .map(([name, s]) => ({ name, ...s, gd: s.gf - s.ga }))
-    .sort((a, b) =>
-      b.pts - a.pts || b.gd - a.gd || b.gf - a.gf ||
-      (SEED[a.name] || 99) - (SEED[b.name] || 99)
-    );
+    .sort(standingsCmp);
 }
 
 function buildStandingsTable(standings, group) {
@@ -284,10 +313,7 @@ function buildProjection(MATCHES) {
   const thirds = GROUP_IDS
     .map(g => standings[g][2] && { group: g, ...standings[g][2] })
     .filter(Boolean)
-    .sort((a, b) =>
-      b.pts - a.pts || b.gd - a.gd || b.gf - a.gf ||
-      (SEED[a.name] || 99) - (SEED[b.name] || 99)
-    );
+    .sort(standingsCmp);
   const slots = [];
   MATCHES.forEach(m => {
     if (m.group !== '32 הגדולות') return;
@@ -335,6 +361,404 @@ function projectedTeam(part, proj) {
   if (m = part.match(/^סגנית בית ([A-L])$/)) return proj.standings[m[1]]?.[1]?.name;
   if (/^מקום 3 מבתים /.test(part)) return proj.thirdSlots[part];
   return null;
+}
+
+// ── Playoff probability engine ──────────────────────────────────────────
+// A Monte-Carlo simulation of the whole knockout tree. Every remaining group
+// match (and every knockout match) is replayed thousands of times from the
+// current results, so each bracket slot gets a distribution over which teams
+// might actually meet there. Re-run on every data refresh → live-responsive.
+const SIM_N = 3000;          // simulations per run
+const SIM_BASE = 1.32;       // baseline expected goals per side
+const SIM_ALPHA = 1.0;       // how strongly the seed gap skews the scoreline
+const LIVE_REMAIN = 0.4;     // fraction of scoring still to come in a live match
+const SEP = '␟';        // internal key separator (won't appear in names)
+
+function isRealTeam(s) { return SEED[s] != null || TEAM_EN[s] != null; }
+function ratingFromSeed(name) { return (48 - (SEED[name] || 40)) / 47; }
+function simLambdas(r1, r2) {
+  const d = (r1 - r2) * SIM_ALPHA * 0.5;
+  return [SIM_BASE * Math.exp(d), SIM_BASE * Math.exp(-d)];
+}
+function simPoisson(l) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *= Math.random(); } while (p > L); return k - 1; }
+function emptyRec() { return { w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }; }
+function applyPair(h, a, hg, ag) {
+  h.gf += hg; h.ga += ag; a.gf += ag; a.ga += hg;
+  if (hg > ag) { h.w++; h.pts += 3; a.l++; }
+  else if (hg < ag) { a.w++; a.pts += 3; h.l++; }
+  else { h.d++; h.pts++; a.d++; a.pts++; }
+}
+
+// Split each group into a fixed base (decided matches) + a list of matches
+// still to simulate (future = full sim, live = current score + reduced sim)
+function prepareGroups(MATCHES) {
+  const groups = {};
+  GROUP_IDS.forEach(id => groups[id] = { teams: new Set(), base: {}, pending: [] });
+  MATCHES.forEach(m => {
+    if (isKnockoutRow(m) || !groups[m.group]) return;
+    const G = groups[m.group];
+    const [home, away] = m.match.split(' - ').map(s => s.trim());
+    G.teams.add(home); G.teams.add(away);
+    if (!G.base[home]) G.base[home] = emptyRec();
+    if (!G.base[away]) G.base[away] = emptyRec();
+    const goals = m.score ? m.score.split('-').map(n => parseInt(n.trim(), 10)) : null;
+    if (m.score && !m.live) applyPair(G.base[home], G.base[away], goals[0], goals[1]);
+    else if (m.live && goals) G.pending.push({ home, away, hg0: goals[0], ag0: goals[1], scale: LIVE_REMAIN });
+    else G.pending.push({ home, away, hg0: 0, ag0: 0, scale: 1 });
+  });
+  Object.values(groups).forEach(G => { G.teams = [...G.teams]; });
+  return groups;
+}
+
+function simGroup(G) {
+  const stats = {};
+  G.teams.forEach(t => { const b = G.base[t]; stats[t] = { name: t, w: b.w, d: b.d, l: b.l, gf: b.gf, ga: b.ga, pts: b.pts }; });
+  G.pending.forEach(p => {
+    const [lH, lA] = simLambdas(ratingFromSeed(p.home), ratingFromSeed(p.away));
+    const hg = p.hg0 + simPoisson(lH * p.scale);
+    const ag = p.ag0 + simPoisson(lA * p.scale);
+    applyPair(stats[p.home], stats[p.away], hg, ag);
+  });
+  return Object.values(stats).map(s => { s.gd = s.gf - s.ga; return s; }).sort(standingsCmp);
+}
+
+// The eight R32 slots that take a third-placed team, with the groups each accepts
+function thirdSlotDefs(MATCHES) {
+  const slots = [];
+  MATCHES.forEach(m => {
+    if (m.group !== '32 הגדולות') return;
+    m.match.replace(/^משחק \d+: /, '').split(' - ').forEach(part => {
+      const mm = part.trim().match(/^מקום 3 מבתים (.+)$/);
+      if (mm) slots.push({ key: part.trim(), groups: mm[1].split('/') });
+    });
+  });
+  return slots;
+}
+
+// Every knockout match in bracket order, with whatever is already decided
+function parseKO(MATCHES) {
+  const list = [];
+  MATCHES.forEach(m => {
+    if (!isKnockoutRow(m)) return;
+    const num = (m.match.match(/^משחק (\d+)/) || [])[1];
+    const body = m.match.replace(/^משחק \d+( \(הגמר!\))?: /, '');
+    const i = body.indexOf(' - ');
+    const side1 = body.slice(0, i).trim(), side2 = body.slice(i + 3).trim();
+    const finalized = isRealTeam(side1) && isRealTeam(side2);
+    let fixedWinner = null, fixedLoser = null;
+    if (finalized && m.score && !m.live) {
+      const [g1, g2] = m.score.split('-').map(n => parseInt(n.trim(), 10));
+      if (g1 > g2) { fixedWinner = side1; fixedLoser = side2; }
+      else if (g2 > g1) { fixedWinner = side2; fixedLoser = side1; }
+    }
+    list.push({ num, side1, side2, group: m.group, finalized, m, fixedWinner, fixedLoser });
+  });
+  return list.sort((a, b) => (+a.num) - (+b.num));
+}
+
+function resolveSide(side, standings, thirdSlots, winner, loser) {
+  if (isRealTeam(side)) return side;
+  let mm;
+  if (mm = side.match(/^מנצחת בית ([A-L])$/)) return standings[mm[1]]?.[0]?.name;
+  if (mm = side.match(/^סגנית בית ([A-L])$/)) return standings[mm[1]]?.[1]?.name;
+  if (/^מקום 3 מבתים /.test(side)) return thirdSlots[side];
+  if (mm = side.match(/^מנצחת משחק (\d+)$/)) return winner[mm[1]];
+  if (mm = side.match(/^מפסידה משחק (\d+)$/)) return loser[mm[1]];
+  return null;
+}
+
+function koWinner(t1, t2) {
+  const r1 = ratingFromSeed(t1), r2 = ratingFromSeed(t2);
+  const [l1, l2] = simLambdas(r1, r2);
+  const g1 = simPoisson(l1), g2 = simPoisson(l2);
+  if (g1 > g2) return t1;
+  if (g2 > g1) return t2;
+  return Math.random() < 0.5 + (r1 - r2) * 0.2 ? t1 : t2; // penalties — slight lean to the favourite
+}
+
+function simulateOnce(groups, koList, slotDefs, tally) {
+  const standings = {};
+  GROUP_IDS.forEach(id => standings[id] = simGroup(groups[id]));
+  const thirds = GROUP_IDS.map(id => standings[id][2] && { group: id, ...standings[id][2] })
+    .filter(Boolean).sort(standingsCmp);
+  const thirdSlots = allocateThirds(slotDefs, thirds);
+  const winner = {}, loser = {};
+  koList.forEach(k => {
+    const t1 = resolveSide(k.side1, standings, thirdSlots, winner, loser);
+    const t2 = resolveSide(k.side2, standings, thirdSlots, winner, loser);
+    if (t1 && t2) tally[k.num].set(t1 + SEP + t2, (tally[k.num].get(t1 + SEP + t2) || 0) + 1);
+    let w = k.fixedWinner, l = k.fixedLoser;
+    if (!w && t1 && t2) { w = koWinner(t1, t2); l = w === t1 ? t2 : t1; }
+    if (w) winner[k.num] = w;
+    if (l) loser[k.num] = l;
+  });
+}
+
+// What every slot would resolve to right now: current standings + each knockout
+// going to the higher-seeded side. This is the highlighted "current status" line.
+function deterministicMatchups(MATCHES, koList, slotDefs) {
+  const standings = {};
+  GROUP_IDS.forEach(id => standings[id] = calcStandings(id, MATCHES));
+  const thirds = GROUP_IDS.map(id => standings[id][2] && { group: id, ...standings[id][2] })
+    .filter(Boolean).sort(standingsCmp);
+  const thirdSlots = allocateThirds(slotDefs, thirds);
+  const winner = {}, loser = {}, matchup = {};
+  koList.forEach(k => {
+    const t1 = resolveSide(k.side1, standings, thirdSlots, winner, loser);
+    const t2 = resolveSide(k.side2, standings, thirdSlots, winner, loser);
+    matchup[k.num] = [t1, t2];
+    let w = k.fixedWinner, l = k.fixedLoser;
+    if (!w && t1 && t2) { w = ratingFromSeed(t1) >= ratingFromSeed(t2) ? t1 : t2; l = w === t1 ? t2 : t1; }
+    if (w) winner[k.num] = w;
+    if (l) loser[k.num] = l;
+  });
+  return matchup;
+}
+
+function computePlayoff(MATCHES) {
+  const groups = prepareGroups(MATCHES);
+  const koList = parseKO(MATCHES);
+  const slotDefs = thirdSlotDefs(MATCHES);
+  const tally = {};
+  koList.forEach(k => tally[k.num] = new Map());
+  for (let i = 0; i < SIM_N; i++) simulateOnce(groups, koList, slotDefs, tally);
+  const prob = {};
+  koList.forEach(k => {
+    prob[k.num] = [...tally[k.num].entries()]
+      .map(([key, c]) => { const [a, b] = key.split(SEP); return { a, b, pct: c / SIM_N }; })
+      .sort((x, y) => y.pct - x.pct);
+  });
+  return { prob, current: deterministicMatchups(MATCHES, koList, slotDefs), koList };
+}
+
+// Top scenarios for a slot, guaranteeing the current-status matchup is shown
+function scenarioList(num, data) {
+  const entries = data.prob[num] || [];
+  const cur = data.current[num];
+  const curKey = cur && cur[0] && cur[1] ? cur[0] + SEP + cur[1] : null;
+  let top = entries.slice(0, 5);
+  if (curKey && !top.some(e => e.a + SEP + e.b === curKey)) {
+    const curEntry = entries.find(e => e.a + SEP + e.b === curKey) || { a: cur[0], b: cur[1], pct: 0 };
+    top = [...entries.slice(0, 4), curEntry].sort((x, y) => y.pct - x.pct);
+  }
+  return { top, curKey };
+}
+
+// ── Bracket view ────────────────────────────────────────────────────────
+// Cached probability run + the active filters (single-team highlight and a pair "do they meet")
+const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '' };
+
+// Top-to-bottom order within each round so the connector lines pair up correctly
+const BK_ROUNDS = ['32 הגדולות', 'שמינית גמר', 'רבע גמר', 'חצי גמר', 'גמר'];
+const BK_ORDER = {
+  '32 הגדולות': [74, 77, 73, 75, 83, 84, 81, 82, 76, 78, 79, 80, 86, 88, 85, 87],
+  'שמינית גמר': [89, 90, 93, 94, 91, 92, 95, 96],
+  'רבע גמר': [97, 98, 99, 100],
+  'חצי גמר': [101, 102],
+  'גמר': [104],
+};
+
+function flagOf(he) { return TEAM_FLAG[TEAM_EN[he] || he] || ''; }
+
+// {real, label, sub?, flag?} for one side of a knockout match
+function sideMeta(side) {
+  if (isRealTeam(side)) return { real: true, label: tTeam(side), flag: flagOf(side) };
+  let mm;
+  if (mm = side.match(/^מנצחת בית ([A-L])$/)) return { real: false, label: T('phWinnerGroup', mm[1]) };
+  if (mm = side.match(/^סגנית בית ([A-L])$/)) return { real: false, label: T('phRunnerGroup', mm[1]) };
+  if (mm = side.match(/^מקום 3 מבתים (.+)$/)) return { real: false, label: T('phThird'), sub: mm[1] };
+  if (mm = side.match(/^מנצחת משחק (\d+)$/)) return { real: false, label: T('phWinnerMatch', mm[1]) };
+  if (mm = side.match(/^מפסידה משחק (\d+)$/)) return { real: false, label: T('phLoserMatch', mm[1]) };
+  return { real: false, label: side };
+}
+
+function buildMatchCard(k) {
+  const x = k.m;
+  const m1 = sideMeta(k.side1), m2 = sideMeta(k.side2);
+  const hasScore = !!x.score;
+  const [s1, s2] = hasScore ? x.score.split('-').map(t => t.trim()) : ['', ''];
+  const live = !!x.live;
+  const row = (meta, score, side) => {
+    const flag = meta.flag ? `<span class="bk-flag">${meta.flag}</span>` : '<span class="bk-flag"></span>';
+    const name = `<span class="bk-name${meta.real ? '' : ' bk-ph'}">${meta.label}</span>` +
+      (meta.sub ? `<span class="bk-sub">${meta.sub}</span>` : '');
+    const sc = hasScore ? `<span class="bk-score">${score}</span>` : '';
+    return `<div class="bk-row${k.fixedWinner === side ? ' bk-win' : ''}">${flag}<span class="bk-nm">${name}</span>${sc}</div>`;
+  };
+  const conv = matchInTz(x);
+  const dow = tDow(conv.date);
+  const when = `${tDate(conv.date)}${conv.time ? ' · ' + conv.time : ''}`;
+  const clickable = !k.finalized;
+  return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}" data-num="${k.num}">
+    <div class="bk-when">${when}${live ? ` <span class="bk-livebadge">${T('live')}</span>` : ''}</div>
+    ${row(m1, s1, k.side1)}
+    ${row(m2, s2, k.side2)}
+  </div>`;
+}
+
+function renderBracket() {
+  const host = document.getElementById('bracket');
+  if (!host) return;
+  const data = PLAYOFF.data;
+  if (!data) { host.innerHTML = `<div class="bk-calc">${T('probCalc')}</div>`; return; }
+  const byNum = {};
+  data.koList.forEach(k => byNum[k.num] = k);
+  const bracket = document.createElement('div');
+  bracket.className = 'bracket';
+  BK_ROUNDS.forEach(rk => {
+    const round = document.createElement('div');
+    round.className = 'bk-round' + (rk === 'גמר' ? ' bk-final' : '') + (rk !== '32 הגדולות' ? ' bk-haschildren' : '');
+    const title = document.createElement('div');
+    title.className = 'bk-round-title';
+    title.textContent = tStage(rk);
+    round.appendChild(title);
+    const ties = document.createElement('div');
+    ties.className = 'bk-ties';
+    (BK_ORDER[rk] || []).forEach(num => {
+      const k = byNum[num];
+      if (!k) return;
+      const tie = document.createElement('div');
+      tie.className = 'bk-tie';
+      tie.innerHTML = buildMatchCard(k);
+      ties.appendChild(tie);
+    });
+    round.appendChild(ties);
+    bracket.appendChild(round);
+  });
+  host.innerHTML = '';
+  host.appendChild(bracket);
+  const third = byNum[103];
+  if (third) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bk-third';
+    wrap.innerHTML = `<div class="bk-round-title">${T('thirdPlaceTitle')}</div><div class="bk-tie">${buildMatchCard(third)}</div>`;
+    host.appendChild(wrap);
+  }
+  buildPlayoffFilterPanel();
+  applyBracketFilter();
+}
+
+// Teams that appear in at least one match's top-5 scenarios (so every option does something)
+function playoffTeamList() {
+  const teams = new Set();
+  PLAYOFF.data.koList.forEach(k => scenarioList(k.num, PLAYOFF.data).top.forEach(e => { teams.add(e.a); teams.add(e.b); }));
+  return [...teams].filter(Boolean);
+}
+
+// Fill one dropdown panel: empty option, then top teams, then the rest (like the schedule)
+function fillTeamPanel(panel, selected, emptyLabel) {
+  if (!panel || !PLAYOFF.data) return;
+  const sortBy = (a, b) => tTeam(a).localeCompare(tTeam(b), lang === 'he' ? 'he' : 'en');
+  const list = playoffTeamList();
+  const topTeams = list.filter(t => TOP.includes(t)).sort(sortBy);
+  const restTeams = list.filter(t => !TOP.includes(t)).sort(sortBy);
+  panel.innerHTML = '';
+  const addItem = (value, text, cls) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cs-item' + (cls ? ' ' + cls : '') + (value === selected ? ' selected' : '');
+    b.dataset.value = value;
+    b.innerHTML = `<span class="cs-main">${text}</span>`;
+    panel.appendChild(b);
+  };
+  const addLabel = t => { const d = document.createElement('div'); d.className = 'cs-sec-label'; d.textContent = t; panel.appendChild(d); };
+  const addSep = () => { const d = document.createElement('div'); d.className = 'cs-sep'; panel.appendChild(d); };
+  addItem('', emptyLabel);
+  if (topTeams.length) { addSep(); addLabel(T('topGroup')); topTeams.forEach(t => addItem(t, `${flagOf(t)} ${tTeam(t)}`, 'cs-indent')); }
+  if (restTeams.length) { addSep(); addLabel(T('restGroup')); restTeams.forEach(t => addItem(t, `${flagOf(t)} ${tTeam(t)}`, 'cs-indent')); }
+}
+
+function setPlayoffLabel(id, team, emptyLabel) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = team ? `${flagOf(team)} ${tTeam(team)}` : emptyLabel;
+}
+
+// (Re)build all three filter dropdowns + labels from the current data and selections
+function buildPlayoffFilterPanel() {
+  if (!PLAYOFF.data) return;
+  const list = playoffTeamList();
+  ['filter', 'pairA', 'pairB'].forEach(k => { if (PLAYOFF[k] && !list.includes(PLAYOFF[k])) PLAYOFF[k] = ''; });
+  fillTeamPanel(document.getElementById('playoffFilterPanel'), PLAYOFF.filter, T('allTeams'));
+  fillTeamPanel(document.getElementById('playoffPairPanelA'), PLAYOFF.pairA, T('choose'));
+  fillTeamPanel(document.getElementById('playoffPairPanelB'), PLAYOFF.pairB, T('choose'));
+  setPlayoffLabel('playoffFilterLabel', PLAYOFF.filter, T('allTeams'));
+  setPlayoffLabel('playoffPairLabelA', PLAYOFF.pairA, T('choose'));
+  setPlayoffLabel('playoffPairLabelB', PLAYOFF.pairB, T('choose'));
+}
+
+// Total probability two teams meet anywhere — sum of their (unordered) matchup
+// probability over every match (mutually exclusive: they can meet at most once)
+function pairMeetProbability(a, b) {
+  let p = 0;
+  PLAYOFF.data.koList.forEach(k => (PLAYOFF.data.prob[k.num] || []).forEach(e => {
+    if ((e.a === a && e.b === b) || (e.a === b && e.b === a)) p += e.pct;
+  }));
+  return p;
+}
+
+// Apply whichever filter is active: a pair "do they meet" takes over when both
+// teams are chosen, otherwise the single-team highlight
+function applyBracketFilter() {
+  const host = document.getElementById('bracket');
+  if (!host || !PLAYOFF.data) return;
+  const team = PLAYOFF.filter;
+  const a = PLAYOFF.pairA, b = PLAYOFF.pairB;
+  const pairMode = a && b && a !== b;
+  const hl = new Set();
+  if (pairMode) {
+    PLAYOFF.data.koList.forEach(k => {
+      if (scenarioList(k.num, PLAYOFF.data).top.some(e => (e.a === a && e.b === b) || (e.a === b && e.b === a))) hl.add(k.num);
+    });
+  } else if (team) {
+    PLAYOFF.data.koList.forEach(k => {
+      if (scenarioList(k.num, PLAYOFF.data).top.some(e => e.a === team || e.b === team)) hl.add(k.num);
+    });
+  }
+  host.classList.toggle('bk-filtering', hl.size > 0);
+  host.querySelectorAll('.bk-match[data-num]').forEach(el => el.classList.toggle('bk-hl', hl.has(el.dataset.num)));
+  const cnt = document.getElementById('playoffScenCount');
+  if (cnt) { const show = !!team && !pairMode; cnt.hidden = !show; cnt.textContent = show ? T('scenCount', hl.size) : ''; }
+  const meet = document.getElementById('playoffPairResult');
+  if (meet) {
+    if (pairMode) {
+      const p = pairMeetProbability(a, b);
+      meet.hidden = false;
+      meet.textContent = T('meetChance', p > 0 && p < 0.005 ? '<1' : String(Math.round(p * 100)));
+    } else { meet.hidden = true; meet.textContent = ''; }
+  }
+  const clr = document.getElementById('playoffClear');
+  if (clr) clr.disabled = !(PLAYOFF.filter || PLAYOFF.pairA || PLAYOFF.pairB);
+}
+
+function openProbModal(num) {
+  const data = PLAYOFF.data;
+  if (!data) return;
+  const k = data.koList.find(x => x.num === num);
+  if (!k) return;
+  const m1 = sideMeta(k.side1), m2 = sideMeta(k.side2);
+  document.getElementById('probModalTitle').textContent = tStage(k.group);
+  document.getElementById('probModalSlot').textContent = `${m1.label}${T('probVs')}${m2.label}`;
+  const { top, curKey } = scenarioList(num, data);
+  const body = document.getElementById('probModalBody');
+  if (!top.length) {
+    body.innerHTML = `<div class="prob-empty">${T('probDecided')}</div>`;
+  } else {
+    const pa = PLAYOFF.pairA, pb = PLAYOFF.pairB;
+    const pairMode = pa && pb && pa !== pb;
+    body.innerHTML = top.map(e => {
+      const pct = Math.round(e.pct * 100);
+      const isPair = pairMode && ((e.a === pa && e.b === pb) || (e.a === pb && e.b === pa));
+      const isCur = curKey === e.a + SEP + e.b; // tag shows even when the row is also the green pair row
+      return `<div class="prob-row${isPair ? ' prob-pair' : isCur ? ' prob-cur' : ''}">
+        <div class="prob-bar" style="width:${Math.max(3, pct)}%"></div>
+        <span class="prob-teams">${flagOf(e.a)} ${tTeam(e.a)} <span class="prob-dash">-</span> ${tTeam(e.b)} ${flagOf(e.b)}</span>
+        ${isCur ? `<span class="prob-cur-tag">${T('probCurrent')}</span>` : ''}
+        <span class="prob-pct">${pct}%</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('probModalFoot').textContent = T('probCurrentHint');
+  document.getElementById('probModal').hidden = false;
 }
 
 const DOW = {
@@ -1170,6 +1594,17 @@ async function init() {
         d.dataset.expKey = expKey;
       }
 
+      // Future knockout rows (teams not yet set) open the matchup-scenario box,
+      // exactly like clicking the slot in the Playoff Zone
+      let probNum = null;
+      if (ko && !expandable) {
+        const n = (m.match.match(/^משחק (\d+)/) || [])[1];
+        const body = m.match.replace(/^משחק \d+( \(הגמר!\))?: /, '');
+        const ix = body.indexOf(' - ');
+        const future = ix > -1 && !(isRealTeam(body.slice(0, ix).trim()) && isRealTeam(body.slice(ix + 3).trim()));
+        if (future && n) { probNum = n; d.classList.add('prob-clickable'); d.dataset.num = n; }
+      }
+
       d.innerHTML = `
         <div class="star">${starSymbol}</div>
         <div class="m-info">
@@ -1178,7 +1613,7 @@ async function init() {
           <div class="m-meta">${stageBadge}${qualBadge}${finishedBadge}${liveBadge}</div>
         </div>
         ${rightCol}
-        ${expandable ? '<span class="m-chevron">▾</span>' : ''}
+        ${expandable ? '<span class="m-chevron">▾</span>' : (probNum ? `<span class="m-prob-cue" title="${T('probScenarios')}">📊</span>` : '')}
       `;
       group.appendChild(d);
 
@@ -1210,6 +1645,23 @@ async function init() {
     document.querySelectorAll('.match.expandable.open').forEach(x => x.classList.remove('open'));
     expandedLive.clear();
     updateCollapseFab();
+  });
+
+  // Future knockout rows open the same matchup-scenario box as the Playoff Zone
+  els.list.addEventListener('click', e => {
+    const probRow = e.target.closest('.match.prob-clickable');
+    if (!probRow || !probRow.dataset.num) return;
+    e.stopPropagation();
+    const num = probRow.dataset.num;
+    if (PLAYOFF.data) { openProbModal(num); return; }
+    // Cold start — paint a "calculating…" state, then compute off the next frame
+    const pm = document.getElementById('probModal');
+    document.getElementById('probModalTitle').textContent = '';
+    document.getElementById('probModalSlot').textContent = '';
+    document.getElementById('probModalFoot').textContent = '';
+    document.getElementById('probModalBody').innerHTML = `<div class="prob-empty">${T('probCalc')}</div>`;
+    pm.hidden = false;
+    requestAnimationFrame(() => setTimeout(() => { ensurePlayoffData(); openProbModal(num); }, 20));
   });
 
   // Toggle the details slider under a match row
@@ -1294,6 +1746,102 @@ async function init() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
   }
 
+  // ── Playoff Zone view ──
+  const playoffView = document.getElementById('playoffView');
+  const playoffBtn = document.getElementById('playoffBtn');
+  const playoffBack = document.getElementById('playoffBack');
+  const probModal = document.getElementById('probModal');
+  function ensurePlayoffData() { PLAYOFF.data = computePlayoff(MATCHES); }
+  // Keep the run warm so opening a scenario box is instant (compute ≈150ms)
+  function warmPlayoff() { if (PLAYOFF.data) return; setTimeout(() => { if (!PLAYOFF.data) { try { ensurePlayoffData(); } catch (e) { console.warn('playoff warm-up failed', e); } } }, 400); }
+  function openPlayoff() {
+    document.body.classList.add('playoff-mode');
+    playoffView.hidden = false;
+    window.scrollTo(0, 0);
+    renderBracket(); // paints the "calculating…" state instantly when data isn't ready
+    if (!PLAYOFF.data) requestAnimationFrame(() => setTimeout(() => { ensurePlayoffData(); renderBracket(); }, 20));
+  }
+  function closePlayoff() { document.body.classList.remove('playoff-mode'); playoffView.hidden = true; }
+  // Results changed → drop the cached run; recompute now if the view is open
+  function playoffInvalidate() {
+    PLAYOFF.data = null;
+    if (playoffView && !playoffView.hidden) { ensurePlayoffData(); renderBracket(); }
+  }
+  if (playoffBtn) playoffBtn.addEventListener('click', openPlayoff);
+  if (playoffBack) playoffBack.addEventListener('click', closePlayoff);
+  if (playoffView) playoffView.addEventListener('click', e => {
+    const card = e.target.closest('.bk-match.bk-clickable');
+    if (card && card.dataset.num) openProbModal(card.dataset.num);
+  });
+  // Team filters — three custom dropdowns (single-team highlight + a pair "do they meet")
+  const PF_PANELS = ['playoffFilterPanel', 'playoffPairPanelA', 'playoffPairPanelB'];
+  const PF_TRIGGERS = ['playoffFilterTrigger', 'playoffPairTriggerA', 'playoffPairTriggerB'];
+  function closeAllPlayoffPanels() {
+    PF_PANELS.forEach(id => { const p = document.getElementById(id); if (p) p.hidden = true; });
+    PF_TRIGGERS.forEach(id => { const t = document.getElementById(id); if (t) t.setAttribute('aria-expanded', 'false'); });
+  }
+  const anyPlayoffPanelOpen = () => PF_PANELS.some(id => { const p = document.getElementById(id); return p && !p.hidden; });
+  function openPlayoffPanel(triggerId) {
+    const t = document.getElementById(triggerId);
+    const p = t && t.parentElement.querySelector('.cs-panel');
+    if (p) { p.hidden = false; t.setAttribute('aria-expanded', 'true'); }
+  }
+  function wirePlayoffDropdown(triggerId, panelId, pick) {
+    const trigger = document.getElementById(triggerId), panel = document.getElementById(panelId);
+    if (!trigger || !panel) return;
+    trigger.addEventListener('click', e => {
+      e.stopPropagation();
+      const willOpen = panel.hidden;
+      closeAllPlayoffPanels();
+      if (willOpen) { panel.hidden = false; trigger.setAttribute('aria-expanded', 'true'); }
+    });
+    panel.addEventListener('click', e => {
+      const item = e.target.closest('.cs-item');
+      if (!item) return;
+      // Own this click — rebuilding the panel detaches the item, so the document
+      // outside-click handler would otherwise misread it and re-close the panel
+      e.stopPropagation();
+      const next = pick(item.dataset.value); // pick may return the next dropdown to auto-open
+      closeAllPlayoffPanels();
+      if (next) openPlayoffPanel(next);
+    });
+  }
+  wirePlayoffDropdown('playoffFilterTrigger', 'playoffFilterPanel', v => {
+    PLAYOFF.filter = v;
+    if (v) { PLAYOFF.pairA = ''; PLAYOFF.pairB = ''; } // single + pair are mutually exclusive
+    buildPlayoffFilterPanel(); applyBracketFilter();
+  });
+  // After picking one side of the pair, jump straight to the other empty side
+  wirePlayoffDropdown('playoffPairTriggerA', 'playoffPairPanelA', v => {
+    PLAYOFF.pairA = v; if (v) PLAYOFF.filter = '';
+    buildPlayoffFilterPanel(); applyBracketFilter();
+    return v && !PLAYOFF.pairB ? 'playoffPairTriggerB' : null;
+  });
+  wirePlayoffDropdown('playoffPairTriggerB', 'playoffPairPanelB', v => {
+    PLAYOFF.pairB = v; if (v) PLAYOFF.filter = '';
+    buildPlayoffFilterPanel(); applyBracketFilter();
+    return v && !PLAYOFF.pairA ? 'playoffPairTriggerA' : null;
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('.pv-select')) closeAllPlayoffPanels(); });
+  const playoffClear = document.getElementById('playoffClear');
+  if (playoffClear) playoffClear.addEventListener('click', () => {
+    PLAYOFF.filter = ''; PLAYOFF.pairA = ''; PLAYOFF.pairB = '';
+    closeAllPlayoffPanels();
+    buildPlayoffFilterPanel(); applyBracketFilter();
+  });
+
+  if (probModal) {
+    const hideProb = () => { probModal.hidden = true; };
+    document.getElementById('closeProbModal').addEventListener('click', hideProb);
+    probModal.addEventListener('click', e => { if (e.target === probModal) hideProb(); });
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (!probModal.hidden) hideProb();
+      else if (anyPlayoffPanelOpen()) closeAllPlayoffPanels();
+      else if (playoffView && !playoffView.hidden) closePlayoff();
+    });
+  }
+
   const R_ICONS = { refresh: '🔄', refreshing: '⏳', refreshed: '✓', refreshErr: '✗' };
   function setRefreshState(state) {
     refreshState = state;
@@ -1320,6 +1868,8 @@ async function init() {
       MATCHES = data;
       rebuildDropdowns();
       render();
+      playoffInvalidate();
+      warmPlayoff();
       els.btn.disabled = false;
       markRefreshed();
     } catch (e) {
@@ -1343,6 +1893,7 @@ async function init() {
       if (Array.isArray(data) && data.length > 0) {
         MATCHES = data;
         render();
+        playoffInvalidate();
       }
     } catch (e) {
       console.warn('Background score update failed:', e);
@@ -1453,9 +2004,11 @@ async function init() {
     applyStaticI18n();
     rebuildDropdowns();
     render();
+    if (playoffView && !playoffView.hidden) renderBracket();
   });
 
   render();
+  warmPlayoff();
 }
 
 init();

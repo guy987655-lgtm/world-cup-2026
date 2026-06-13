@@ -17,6 +17,7 @@
         <span data-i18n="subPrefix">לוח משחקים · </span><button type="button" id="tzBtn" class="tz-link">שעון ישראל</button>
       </div>
     </header>
+    <div class="filters-bar">
     <div class="filters">
       <div class="toggle-row">
         <div>
@@ -44,6 +45,11 @@
         </div>
         <button type="button" id="clearFilters" class="clear-btn" data-i18n="clear" disabled>נקה</button>
       </div>
+    </div>
+      <button type="button" id="playoffBtn" class="playoff-entry">
+        <span class="pe-icon">🏆</span>
+        <span class="pe-text" data-i18n="playoffBtn">אזור הפלייאוף</span>
+      </button>
     </div>
     <div class="count-row">
       <span id="count"></span>
@@ -85,6 +91,64 @@
       <div class="modal-body">
         <div class="tz-options" id="tzOptions"></div>
       </div>
+    </div>
+  </div>
+  <div id="playoffView" class="playoff-view" hidden>
+    <div class="pv-head">
+      <h2 class="pv-title" data-i18n="playoffTitle">אזור הפלייאוף</h2>
+    </div>
+    <div class="pv-hint" data-i18n="playoffHint">לחצו על משחק עתידי כדי לראות הסתברויות יריבות</div>
+    <div class="pv-filters-bar">
+    <div class="pv-filters">
+      <div class="pv-filters-rows">
+    <div class="pv-filter">
+      <label class="pv-filter-label" data-i18n="playoffFilter">סינון לפי נבחרת</label>
+      <div class="custom-select pv-select" id="playoffFilterWrap">
+        <button type="button" class="cs-trigger" id="playoffFilterTrigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="cs-label" id="playoffFilterLabel" data-i18n="allTeams">כל הנבחרות</span>
+          <span class="cs-caret">▾</span>
+        </button>
+        <div class="cs-panel" id="playoffFilterPanel" role="listbox" hidden></div>
+      </div>
+      <span class="pv-scen-count" id="playoffScenCount" hidden></span>
+    </div>
+    <div class="pv-filter pv-pair">
+      <label class="pv-filter-label" data-i18n="pairFilter">מפגש בין</label>
+      <div class="custom-select pv-select" id="playoffPairWrapA">
+        <button type="button" class="cs-trigger" id="playoffPairTriggerA" aria-haspopup="listbox" aria-expanded="false">
+          <span class="cs-label" id="playoffPairLabelA" data-i18n="choose">בחר נבחרת</span>
+          <span class="cs-caret">▾</span>
+        </button>
+        <div class="cs-panel" id="playoffPairPanelA" role="listbox" hidden></div>
+      </div>
+      <span class="pv-vs" data-i18n="vsWord">מול</span>
+      <div class="custom-select pv-select" id="playoffPairWrapB">
+        <button type="button" class="cs-trigger" id="playoffPairTriggerB" aria-haspopup="listbox" aria-expanded="false">
+          <span class="cs-label" id="playoffPairLabelB" data-i18n="choose">בחר נבחרת</span>
+          <span class="cs-caret">▾</span>
+        </button>
+        <div class="cs-panel" id="playoffPairPanelB" role="listbox" hidden></div>
+      </div>
+      <span class="pv-scen-count pv-pair-result" id="playoffPairResult" hidden></span>
+    </div>
+      </div>
+      <button type="button" id="playoffClear" class="clear-btn pv-clear" data-i18n="clear" disabled>נקה</button>
+    </div>
+    <button type="button" id="playoffBack" class="pv-back">
+      <span class="pv-back-icon">↩</span>
+      <span data-i18n="backToSchedule">חזרה לשלב הבתים</span>
+    </button>
+    </div>
+    <div id="bracket" class="bracket-scroll"></div>
+  </div>
+  <div class="modal-overlay prob-overlay" id="probModal" hidden>
+    <div class="modal prob-modal" role="dialog" aria-modal="true" aria-labelledby="probModalTitle">
+      <button type="button" class="modal-close" id="closeProbModal" aria-label="סגור">✕</button>
+      <h3 id="probModalTitle"></h3>
+      <div class="prob-slot" id="probModalSlot"></div>
+      <div class="prob-scen-label" data-i18n="probScenarios">תרחישי יריבות אפשריים</div>
+      <div class="modal-body" id="probModalBody"></div>
+      <div class="prob-foot" id="probModalFoot"></div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>
