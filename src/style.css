@@ -626,18 +626,18 @@ body.playoff-mode .lang-toggle { z-index: 600; }
   background: rgba(255,255,255,0.06);
   border-radius: 14px;
   padding: 14px;
-  display: flex; align-items: center; gap: 12px;
+  display: flex; flex-direction: column; gap: 12px;
 }
-.pv-filters-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .pv-clear { flex-shrink: 0; border-color: #3a5db0; }
 .pv-clear:disabled { color: #4a6b8e; border-color: #2e4684; }
 .pv-filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; }
-.pv-filter-label { font-size: .8rem; font-weight: 700; color: var(--bk-muted); flex-shrink: 0; }
+.pv-filter-label { font-size: .8rem; font-weight: 700; color: var(--bk-muted); flex-shrink: 0; white-space: nowrap; }
 .pv-vs { font-size: .8rem; font-weight: 800; color: var(--bk-muted); flex-shrink: 0; }
 .pv-select { flex: 1; min-width: 150px; }
 .pv-pair .pv-select { flex: 1; min-width: 140px; }
 .pv-select .cs-trigger { background: #13234d; color: #eaf0ff; border-color: #3a5db0; font-size: .85rem; padding: 7px 12px; }
 .pv-select .cs-trigger:focus { outline: 1px solid var(--bk-accent); }
+.pv-select .cs-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-select .cs-caret { color: var(--bk-muted); }
 .pv-select .cs-panel { background: #0f1d44; border-color: #3a5db0; }
 .pv-select .cs-item { color: #eaf0ff; }
@@ -720,6 +720,7 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .prob-cur .prob-bar { background: rgba(230,57,80,0.32); }
 .prob-pair { background: rgba(39,174,96,0.26); box-shadow: 0 0 0 1.5px #27ae60 inset; }
 .prob-pair .prob-bar { background: rgba(39,174,96,0.40); }
+.prob-hl { color: #ffd24a; font-weight: 800; }
 .prob-teams { position: relative; z-index: 1; flex: 1; min-width: 0; font-size: .84rem; font-weight: 600; }
 .prob-dash { color: #8fa3d6; }
 .prob-cur-tag { position: relative; z-index: 1; font-size: .56rem; font-weight: 800; background: #e63950; color: #fff; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; white-space: nowrap; }
@@ -729,4 +730,8 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 @media (max-width: 560px) {
   .prob-overlay { align-items: flex-end; padding: 0; }
   .prob-modal { max-width: none; width: 100%; border-radius: 16px 16px 0 0; }
+  /* Phones: keep labels, shrink the pair dropdowns to one row, count/result on their own line */
+  .pv-filters { gap: 10px; }
+  .pv-select, .pv-pair .pv-select { min-width: 0; }
+  .pv-scen-count { order: 1; flex-basis: 100%; }
 }

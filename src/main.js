@@ -730,6 +730,13 @@ function applyBracketFilter() {
   if (clr) clr.disabled = !(PLAYOFF.filter || PLAYOFF.pairA || PLAYOFF.pairB);
 }
 
+// After filtering, bring the first highlighted match into view (both axes) so the
+// user doesn't have to hunt for it down/sideways in the bracket
+function scrollToFirstHighlight() {
+  const el = document.querySelector('#bracket .bk-match.bk-hl');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+}
+
 function openProbModal(num) {
   const data = PLAYOFF.data;
   if (!data) return;
@@ -745,13 +752,15 @@ function openProbModal(num) {
   } else {
     const pa = PLAYOFF.pairA, pb = PLAYOFF.pairB;
     const pairMode = pa && pb && pa !== pb;
+    const single = !pairMode ? PLAYOFF.filter : ''; // single-team filter → highlight that name in gold
+    const nm = t => t && t === single ? `<span class="prob-hl">${tTeam(t)}</span>` : tTeam(t);
     body.innerHTML = top.map(e => {
       const pct = Math.round(e.pct * 100);
       const isPair = pairMode && ((e.a === pa && e.b === pb) || (e.a === pb && e.b === pa));
       const isCur = curKey === e.a + SEP + e.b; // tag shows even when the row is also the green pair row
       return `<div class="prob-row${isPair ? ' prob-pair' : isCur ? ' prob-cur' : ''}">
         <div class="prob-bar" style="width:${Math.max(3, pct)}%"></div>
-        <span class="prob-teams">${flagOf(e.a)} ${tTeam(e.a)} <span class="prob-dash">-</span> ${tTeam(e.b)} ${flagOf(e.b)}</span>
+        <span class="prob-teams">${flagOf(e.a)} ${nm(e.a)} <span class="prob-dash">-</span> ${nm(e.b)} ${flagOf(e.b)}</span>
         ${isCur ? `<span class="prob-cur-tag">${T('probCurrent')}</span>` : ''}
         <span class="prob-pct">${pct}%</span>
       </div>`;
@@ -1809,17 +1818,17 @@ async function init() {
   wirePlayoffDropdown('playoffFilterTrigger', 'playoffFilterPanel', v => {
     PLAYOFF.filter = v;
     if (v) { PLAYOFF.pairA = ''; PLAYOFF.pairB = ''; } // single + pair are mutually exclusive
-    buildPlayoffFilterPanel(); applyBracketFilter();
+    buildPlayoffFilterPanel(); applyBracketFilter(); scrollToFirstHighlight();
   });
   // After picking one side of the pair, jump straight to the other empty side
   wirePlayoffDropdown('playoffPairTriggerA', 'playoffPairPanelA', v => {
     PLAYOFF.pairA = v; if (v) PLAYOFF.filter = '';
-    buildPlayoffFilterPanel(); applyBracketFilter();
+    buildPlayoffFilterPanel(); applyBracketFilter(); scrollToFirstHighlight();
     return v && !PLAYOFF.pairB ? 'playoffPairTriggerB' : null;
   });
   wirePlayoffDropdown('playoffPairTriggerB', 'playoffPairPanelB', v => {
     PLAYOFF.pairB = v; if (v) PLAYOFF.filter = '';
-    buildPlayoffFilterPanel(); applyBracketFilter();
+    buildPlayoffFilterPanel(); applyBracketFilter(); scrollToFirstHighlight();
     return v && !PLAYOFF.pairA ? 'playoffPairTriggerA' : null;
   });
   document.addEventListener('click', e => { if (!e.target.closest('.pv-select')) closeAllPlayoffPanels(); });

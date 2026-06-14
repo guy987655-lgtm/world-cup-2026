@@ -100,7 +100,6 @@
     <div class="pv-hint" data-i18n="playoffHint">לחצו על משחק עתידי כדי לראות הסתברויות יריבות</div>
     <div class="pv-filters-bar">
     <div class="pv-filters">
-      <div class="pv-filters-rows">
     <div class="pv-filter">
       <label class="pv-filter-label" data-i18n="playoffFilter">סינון לפי נבחרת</label>
       <div class="custom-select pv-select" id="playoffFilterWrap">
@@ -111,6 +110,7 @@
         <div class="cs-panel" id="playoffFilterPanel" role="listbox" hidden></div>
       </div>
       <span class="pv-scen-count" id="playoffScenCount" hidden></span>
+      <button type="button" id="playoffClear" class="clear-btn pv-clear" data-i18n="clear" disabled>נקה</button>
     </div>
     <div class="pv-filter pv-pair">
       <label class="pv-filter-label" data-i18n="pairFilter">מפגש בין</label>
@@ -131,8 +131,6 @@
       </div>
       <span class="pv-scen-count pv-pair-result" id="playoffPairResult" hidden></span>
     </div>
-      </div>
-      <button type="button" id="playoffClear" class="clear-btn pv-clear" data-i18n="clear" disabled>נקה</button>
     </div>
     <button type="button" id="playoffBack" class="pv-back">
       <span class="pv-back-icon">↩</span>
