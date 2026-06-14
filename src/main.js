@@ -546,7 +546,7 @@ function scenarioList(num, data) {
 
 // ── Bracket view ────────────────────────────────────────────────────────
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
-const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '' };
+const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1 };
 
 // Top-to-bottom order within each round so the connector lines pair up correctly
 const BK_ROUNDS = ['32 הגדולות', 'שמינית גמר', 'רבע גמר', 'חצי גמר', 'גמר'];
@@ -627,6 +627,7 @@ function renderBracket() {
   });
   host.innerHTML = '';
   host.appendChild(bracket);
+  if (PLAYOFF.zoom !== 1) bracket.style.zoom = PLAYOFF.zoom; // keep pinch-zoom across re-renders
   const third = byNum[103];
   if (third) {
     const wrap = document.createElement('div');
@@ -1770,7 +1771,7 @@ async function init() {
     renderBracket(); // paints the "calculating…" state instantly when data isn't ready
     if (!PLAYOFF.data) requestAnimationFrame(() => setTimeout(() => { ensurePlayoffData(); renderBracket(); }, 20));
   }
-  function closePlayoff() { document.body.classList.remove('playoff-mode'); playoffView.hidden = true; }
+  function closePlayoff() { document.body.classList.remove('playoff-mode'); playoffView.hidden = true; PLAYOFF.zoom = 1; }
   // Results changed → drop the cached run; recompute now if the view is open
   function playoffInvalidate() {
     PLAYOFF.data = null;
@@ -1832,6 +1833,25 @@ async function init() {
     return v && !PLAYOFF.pairA ? 'playoffPairTriggerA' : null;
   });
   document.addEventListener('click', e => { if (!e.target.closest('.pv-select')) closeAllPlayoffPanels(); });
+
+  // ── Pinch-to-zoom the bracket (two fingers, touch devices) ──
+  const ZOOM_MIN = 0.5, ZOOM_MAX = 3;
+  let pinchDist0 = 0, pinchZoom0 = 1;
+  const touchDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  playoffView.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { pinchDist0 = touchDist(e.touches); pinchZoom0 = PLAYOFF.zoom; }
+  }, { passive: true });
+  playoffView.addEventListener('touchmove', e => {
+    if (e.touches.length !== 2 || !pinchDist0) return;
+    const el = playoffView.querySelector('.bracket');
+    if (!el) return;
+    e.preventDefault(); // we own the pinch; stop native page zoom/scroll
+    const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinchZoom0 * (touchDist(e.touches) / pinchDist0)));
+    PLAYOFF.zoom = z;
+    el.style.zoom = z;
+  }, { passive: false });
+  playoffView.addEventListener('touchend', e => { if (e.touches.length < 2) pinchDist0 = 0; }, { passive: true });
+
   const playoffClear = document.getElementById('playoffClear');
   if (playoffClear) playoffClear.addEventListener('click', () => {
     PLAYOFF.filter = ''; PLAYOFF.pairA = ''; PLAYOFF.pairB = '';

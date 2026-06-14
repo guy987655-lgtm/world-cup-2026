@@ -651,7 +651,7 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .bk-filtering .bk-match:not(.bk-hl) { opacity: .38; }
 .bk-match.bk-hl { border-color: #ffd24a; box-shadow: 0 0 0 2px #ffd24a, 0 0 14px rgba(255,210,74,.45); }
 
-.bracket-scroll { overflow-x: auto; padding-bottom: 16px; }
+.bracket-scroll { overflow-x: auto; padding-bottom: 16px; touch-action: pan-x pan-y; }
 .bracket { display: flex; gap: 20px; min-width: max-content; align-items: stretch; padding-top: 2px; }
 .bk-round { display: flex; flex-direction: column; min-width: 162px; }
 .bk-round-title {
