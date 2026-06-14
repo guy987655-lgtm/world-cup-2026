@@ -627,6 +627,8 @@ function renderBracket() {
   });
   host.innerHTML = '';
   host.appendChild(bracket);
+  PLAYOFF.natW = bracket.offsetWidth;  // natural (unzoomed) size → used for the "fit whole bracket" zoom
+  PLAYOFF.natH = bracket.offsetHeight;
   if (PLAYOFF.zoom !== 1) bracket.style.zoom = PLAYOFF.zoom; // keep pinch-zoom across re-renders
   const third = byNum[103];
   if (third) {
@@ -1835,7 +1837,15 @@ async function init() {
   document.addEventListener('click', e => { if (!e.target.closest('.pv-select')) closeAllPlayoffPanels(); });
 
   // ── Pinch-to-zoom the bracket (two fingers, touch devices) ──
-  const ZOOM_MIN = 0.5, ZOOM_MAX = 3;
+  const ZOOM_MAX = 3;
+  // Max zoom-out = the scale at which the whole bracket fits on screen
+  function fitZoom() {
+    const sc = document.getElementById('bracket');
+    if (!sc || !PLAYOFF.natW || !PLAYOFF.natH) return 0.4;
+    const availW = sc.clientWidth || window.innerWidth;
+    const availH = Math.max(220, window.innerHeight - 120); // room left below the header + filters
+    return Math.max(0.15, Math.min(1, Math.min(availW / PLAYOFF.natW, availH / PLAYOFF.natH)));
+  }
   let pinchDist0 = 0, pinchZoom0 = 1;
   const touchDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   playoffView.addEventListener('touchstart', e => {
@@ -1846,7 +1856,7 @@ async function init() {
     const el = playoffView.querySelector('.bracket');
     if (!el) return;
     e.preventDefault(); // we own the pinch; stop native page zoom/scroll
-    const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinchZoom0 * (touchDist(e.touches) / pinchDist0)));
+    const z = Math.min(ZOOM_MAX, Math.max(fitZoom(), pinchZoom0 * (touchDist(e.touches) / pinchDist0)));
     PLAYOFF.zoom = z;
     el.style.zoom = z;
   }, { passive: false });
