@@ -81,6 +81,7 @@ const STR = {
     scenCount: n => `מספר התרחישים: ${n}`,
     pairFilter: 'מפגש בין', choose: 'בחר נבחרת', vsWord: 'מול',
     meetChance: s => `סיכוי מפגש: ${s}%`,
+    allScenBtn: 'תרחישי מפגשים', allScenTitle: 'כל תרחישי המפגשים', onlyTopScen: 'רק עם נבחרת טופ',
     probScenarios: 'תרחישי יריבות אפשריים',
     probCurrent: 'מצב נוכחי', probCurrentHint: 'היריבות אם שלב הבתים יסתיים כעת',
     probCalc: 'מחשב הסתברויות…', probDecided: 'המפגש כבר נקבע',
@@ -132,6 +133,7 @@ const STR = {
     scenCount: n => `Scenarios: ${n}`,
     pairFilter: 'Matchup between', choose: 'Choose team', vsWord: 'vs',
     meetChance: s => `Meeting chance: ${s}%`,
+    allScenBtn: 'Matchup scenarios', allScenTitle: 'All matchup scenarios', onlyTopScen: 'Top teams only',
     probScenarios: 'Possible matchup scenarios',
     probCurrent: 'Current status', probCurrentHint: 'The matchup if the group stage ended now',
     probCalc: 'Calculating…', probDecided: 'Matchup already decided',
@@ -546,7 +548,7 @@ function scenarioList(num, data) {
 
 // ── Bracket view ────────────────────────────────────────────────────────
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
-const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1 };
+const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, asTeam: '' };
 
 // Top-to-bottom order within each round so the connector lines pair up correctly
 const BK_ROUNDS = ['32 הגדולות', 'שמינית גמר', 'רבע גמר', 'חצי גמר', 'גמר'];
@@ -771,6 +773,79 @@ function openProbModal(num) {
   }
   document.getElementById('probModalFoot').textContent = T('probCurrentHint');
   document.getElementById('probModal').hidden = false;
+}
+
+// ── All-matchup-scenarios modal ─────────────────────────────────────────
+// Aggregate every possible matchup by (stage, unordered pair). Summing a
+// stage's slots = the chance those two teams meet in that stage.
+function allScenarios() {
+  const map = new Map();
+  PLAYOFF.data.koList.forEach(k => (PLAYOFF.data.prob[k.num] || []).forEach(e => {
+    const [x, y] = [e.a, e.b].sort();
+    const key = k.group + SEP + x + SEP + y;
+    const cur = map.get(key) || { stage: k.group, a: x, b: y, pct: 0 };
+    cur.pct += e.pct;
+    map.set(key, cur);
+  }));
+  return [...map.values()].sort((p, q) => q.pct - p.pct);
+}
+
+// Teams appearing in any matchup scenario (broader than the bracket top-5 list)
+function asTeamList() {
+  const teams = new Set();
+  allScenarios().forEach(r => { teams.add(r.a); teams.add(r.b); });
+  return [...teams].filter(Boolean);
+}
+
+// Build the grouped team dropdown (top teams, then the rest) for the modal,
+// matching the playoff filter style; also refresh the label + clear-button state
+function buildAsTeamPanel() {
+  const panel = document.getElementById('asTeamPanel');
+  if (!panel || !PLAYOFF.data) return;
+  if (PLAYOFF.asTeam && !asTeamList().includes(PLAYOFF.asTeam)) PLAYOFF.asTeam = '';
+  const sortBy = (a, b) => tTeam(a).localeCompare(tTeam(b), lang === 'he' ? 'he' : 'en');
+  const list = asTeamList();
+  const topTeams = list.filter(t => TOP.includes(t)).sort(sortBy);
+  const restTeams = list.filter(t => !TOP.includes(t)).sort(sortBy);
+  panel.innerHTML = '';
+  const addItem = (value, text, cls) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cs-item' + (cls ? ' ' + cls : '') + (value === PLAYOFF.asTeam ? ' selected' : '');
+    b.dataset.value = value;
+    b.innerHTML = `<span class="cs-main">${text}</span>`;
+    panel.appendChild(b);
+  };
+  const addLabel = t => { const d = document.createElement('div'); d.className = 'cs-sec-label'; d.textContent = t; panel.appendChild(d); };
+  const addSep = () => { const d = document.createElement('div'); d.className = 'cs-sep'; panel.appendChild(d); };
+  addItem('', T('allTeams'));
+  if (topTeams.length) { addSep(); addLabel(T('topGroup')); topTeams.forEach(t => addItem(t, `${flagOf(t)} ${tTeam(t)}`, 'cs-indent')); }
+  if (restTeams.length) { addSep(); addLabel(T('restGroup')); restTeams.forEach(t => addItem(t, `${flagOf(t)} ${tTeam(t)}`, 'cs-indent')); }
+  const lbl = document.getElementById('asTeamLabel');
+  if (lbl) lbl.textContent = PLAYOFF.asTeam ? `${flagOf(PLAYOFF.asTeam)} ${tTeam(PLAYOFF.asTeam)}` : T('allTeams');
+  const clr = document.getElementById('asClear');
+  if (clr) clr.disabled = !PLAYOFF.asTeam;
+}
+
+function renderAllScen() {
+  const body = document.getElementById('allScenBody');
+  if (!body) return;
+  if (!PLAYOFF.data) { body.innerHTML = `<div class="prob-empty">${T('probCalc')}</div>`; return; }
+  const topOnly = document.getElementById('asTopOnly')?.checked;
+  const team = PLAYOFF.asTeam;
+  let rows = allScenarios().filter(r => r.pct >= 0.01);
+  if (topOnly) rows = rows.filter(r => TOP.includes(r.a) || TOP.includes(r.b));
+  if (team) rows = rows.filter(r => r.a === team || r.b === team);
+  rows = rows.slice(0, 80);
+  if (!rows.length) { body.innerHTML = `<div class="prob-empty">${T('noMatches')}</div>`; return; }
+  body.innerHTML = rows.map(r => {
+    const pct = Math.round(r.pct * 100);
+    return `<div class="as-row">
+      <span class="as-teams">${flagOf(r.a)} ${tTeam(r.a)} <span class="prob-dash">-</span> ${tTeam(r.b)} ${flagOf(r.b)}</span>
+      <span class="as-stage">${tStage(r.stage)}</span>
+      <span class="as-pct">${pct < 1 ? '<1' : pct}%</span>
+    </div>`;
+  }).join('');
 }
 
 const DOW = {
@@ -1869,6 +1944,51 @@ async function init() {
     buildPlayoffFilterPanel(); applyBracketFilter();
   });
 
+  // All-scenarios modal
+  const allScenBtn = document.getElementById('allScenBtn');
+  const allScenModal = document.getElementById('allScenModal');
+  if (allScenBtn && allScenModal) {
+    const asTeamTrigger = document.getElementById('asTeamTrigger');
+    const asTeamPanel = document.getElementById('asTeamPanel');
+    const closeAsPanel = () => { if (asTeamPanel) { asTeamPanel.hidden = true; asTeamTrigger?.setAttribute('aria-expanded', 'false'); } };
+    allScenBtn.addEventListener('click', () => {
+      if (!PLAYOFF.data) ensurePlayoffData();
+      closeAsPanel();
+      buildAsTeamPanel();
+      renderAllScen();
+      allScenModal.hidden = false;
+    });
+    document.getElementById('asTopOnly').addEventListener('change', renderAllScen);
+    if (asTeamTrigger && asTeamPanel) {
+      asTeamTrigger.addEventListener('click', e => {
+        e.stopPropagation();
+        const willOpen = asTeamPanel.hidden;
+        closeAsPanel();
+        if (willOpen) { asTeamPanel.hidden = false; asTeamTrigger.setAttribute('aria-expanded', 'true'); }
+      });
+      asTeamPanel.addEventListener('click', e => {
+        const item = e.target.closest('.cs-item');
+        if (!item) return;
+        e.stopPropagation();
+        PLAYOFF.asTeam = item.dataset.value;
+        closeAsPanel();
+        buildAsTeamPanel();
+        renderAllScen();
+      });
+    }
+    const asClear = document.getElementById('asClear');
+    if (asClear) asClear.addEventListener('click', () => {
+      PLAYOFF.asTeam = '';
+      closeAsPanel();
+      buildAsTeamPanel();
+      renderAllScen();
+    });
+    document.addEventListener('click', e => { if (!e.target.closest('#asTeamWrap')) closeAsPanel(); });
+    document.getElementById('closeAllScen').addEventListener('click', () => { allScenModal.hidden = true; closeAsPanel(); });
+    allScenModal.addEventListener('click', e => { if (e.target === allScenModal) allScenModal.hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !allScenModal.hidden) allScenModal.hidden = true; });
+  }
+
   if (probModal) {
     const hideProb = () => { probModal.hidden = true; };
     document.getElementById('closeProbModal').addEventListener('click', hideProb);
@@ -2048,6 +2168,11 @@ async function init() {
 
   render();
   warmPlayoff();
+  // On first load, jump straight to today's matches
+  requestAnimationFrame(() => setTimeout(() => {
+    const t = findTodayHeader();
+    if (t) window.scrollTo({ top: Math.max(0, window.scrollY + t.getBoundingClientRect().top - 58), behavior: 'instant' });
+  }, 0));
 }
 
 init();

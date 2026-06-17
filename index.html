@@ -132,6 +132,10 @@
       <span class="pv-scen-count pv-pair-result" id="playoffPairResult" hidden></span>
     </div>
     </div>
+    <button type="button" id="allScenBtn" class="pv-scen-btn">
+      <span class="pv-back-icon">📊</span>
+      <span data-i18n="allScenBtn">תרחישי מפגשים</span>
+    </button>
     <button type="button" id="playoffBack" class="pv-back">
       <span class="pv-back-icon">↩</span>
       <span data-i18n="backToSchedule">חזרה לשלב הבתים</span>
@@ -147,6 +151,29 @@
       <div class="prob-scen-label" data-i18n="probScenarios">תרחישי יריבות אפשריים</div>
       <div class="modal-body" id="probModalBody"></div>
       <div class="prob-foot" id="probModalFoot"></div>
+    </div>
+  </div>
+  <div class="modal-overlay prob-overlay" id="allScenModal" hidden>
+    <div class="modal prob-modal as-modal" role="dialog" aria-modal="true" aria-labelledby="allScenTitle">
+      <button type="button" class="modal-close" id="closeAllScen" aria-label="סגור">✕</button>
+      <h3 id="allScenTitle" data-i18n="allScenTitle">כל תרחישי המפגשים</h3>
+      <div class="as-controls">
+        <label class="as-toggle">
+          <span data-i18n="onlyTopScen">רק עם נבחרת טופ</span>
+          <span class="switch"><input type="checkbox" id="asTopOnly"><span class="slider"></span></span>
+        </label>
+        <div class="as-team-filter">
+          <div class="custom-select pv-select" id="asTeamWrap">
+            <button type="button" class="cs-trigger" id="asTeamTrigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="cs-label" id="asTeamLabel" data-i18n="allTeams">כל הנבחרות</span>
+              <span class="cs-caret">▾</span>
+            </button>
+            <div class="cs-panel" id="asTeamPanel" role="listbox" hidden></div>
+          </div>
+          <button type="button" id="asClear" class="clear-btn pv-clear" data-i18n="clear" disabled>נקה</button>
+        </div>
+      </div>
+      <div class="modal-body" id="allScenBody"></div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>
