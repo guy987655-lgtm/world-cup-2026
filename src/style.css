@@ -700,6 +700,8 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .pv-select .cs-sec-label { color: var(--bk-muted); }
 .pv-scen-count { font-size: .82rem; font-weight: 800; color: #ffd24a; flex-shrink: 0; }
 .pv-scen-count[hidden] { display: none; }
+/* Match played inside the kids time window → green frame */
+.bk-match.bk-window { border-color: #2ec26a; box-shadow: 0 0 0 1.5px rgba(39,174,96,.6); }
 /* Filtered team → highlight its matches, dim the rest */
 .bk-filtering .bk-match:not(.bk-hl) { opacity: .38; }
 .bk-match.bk-hl { border-color: #ffd24a; box-shadow: 0 0 0 2px #ffd24a, 0 0 14px rgba(255,210,74,.45); }
@@ -733,6 +735,7 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .bk-nm { flex: 1; min-width: 0; overflow: hidden; }
 .bk-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }
 .bk-name.bk-ph { color: var(--bk-muted); font-style: italic; font-weight: 600; }
+.bk-name.bk-proj { color: #cdd9ff; font-style: italic; font-weight: 700; }
 .bk-sub { display: block; font-size: .56rem; color: #6f83b8; font-style: italic; }
 .bk-score { font-weight: 800; color: #ffd24a; flex-shrink: 0; min-width: 14px; text-align: center; }
 .bk-row.bk-win .bk-name { color: #fff; font-weight: 800; }

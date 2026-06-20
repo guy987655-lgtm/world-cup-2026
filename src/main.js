@@ -578,13 +578,23 @@ function sideMeta(side) {
 
 function buildMatchCard(k) {
   const x = k.m;
-  const m1 = sideMeta(k.side1), m2 = sideMeta(k.side2);
+  // For unresolved slots, show the current-status projected team (the slot
+  // label moves to a sub-line). Finalized real teams are shown as-is.
+  const cur = (PLAYOFF.data && PLAYOFF.data.current[k.num]) || [];
+  const projMeta = (meta, team) => {
+    if (meta.real || !team) return meta;
+    const slot = meta.sub ? `${meta.label} ${meta.sub}` : meta.label;
+    return { real: false, projected: true, label: tTeam(team), flag: flagOf(team), sub: slot };
+  };
+  const m1 = projMeta(sideMeta(k.side1), cur[0]);
+  const m2 = projMeta(sideMeta(k.side2), cur[1]);
   const hasScore = !!x.score;
   const [s1, s2] = hasScore ? x.score.split('-').map(t => t.trim()) : ['', ''];
   const live = !!x.live;
   const row = (meta, score, side) => {
     const flag = meta.flag ? `<span class="bk-flag">${meta.flag}</span>` : '<span class="bk-flag"></span>';
-    const name = `<span class="bk-name${meta.real ? '' : ' bk-ph'}">${meta.label}</span>` +
+    const nameCls = meta.real ? '' : (meta.projected ? ' bk-ph bk-proj' : ' bk-ph');
+    const name = `<span class="bk-name${nameCls}">${meta.label}</span>` +
       (meta.sub ? `<span class="bk-sub">${meta.sub}</span>` : '');
     const sc = hasScore ? `<span class="bk-score">${score}</span>` : '';
     return `<div class="bk-row${k.fixedWinner === side ? ' bk-win' : ''}">${flag}<span class="bk-nm">${name}</span>${sc}</div>`;
@@ -593,7 +603,8 @@ function buildMatchCard(k) {
   const dow = tDow(conv.date);
   const when = `${tDate(conv.date)}${conv.time ? ' · ' + conv.time : ''}`;
   const clickable = !k.finalized;
-  return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}" data-num="${k.num}">
+  const inWin = inWindow(x); // played inside the kids time window → green frame
+  return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}${inWin ? ' bk-window' : ''}" data-num="${k.num}">
     <div class="bk-when">${when}${live ? ` <span class="bk-livebadge">${T('live')}</span>` : ''}</div>
     ${row(m1, s1, k.side1)}
     ${row(m2, s2, k.side2)}
