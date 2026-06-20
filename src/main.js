@@ -74,6 +74,7 @@ const STR = {
     pen: 'פנדל', ownGoal: 'שער עצמי',
     topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
     collapseAll: 'סגור הכל',
+    scrollTop: 'גלול למעלה',
     playoffBtn: 'אזור הפלייאוף', playoffTitle: 'אזור הפלייאוף',
     backToSchedule: 'חזרה לשלב הבתים',
     playoffHint: 'לחצו על משחק עתידי כדי לראות הסתברויות יריבות',
@@ -126,6 +127,7 @@ const STR = {
     pen: 'pen.', ownGoal: 'own goal',
     topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
     collapseAll: 'Collapse all',
+    scrollTop: 'Scroll to top',
     playoffBtn: 'Playoff Zone', playoffTitle: 'Playoff Zone',
     backToSchedule: 'Back to group stage',
     playoffHint: 'Tap a future match to see matchup probabilities',
@@ -2168,11 +2170,38 @@ async function init() {
 
   render();
   warmPlayoff();
-  // On first load, jump straight to today's matches
-  requestAnimationFrame(() => setTimeout(() => {
+
+  // Landing quick-nav: two buttons shown on arrival — "scroll to top" (right)
+  // and the playoff zone (left). They fade once the user scrolls ~5cm away
+  // from the landing position, leaving the top row clean until then.
+  const landingNav = document.getElementById('landingNav');
+  const FIVE_CM = 189; // 5cm ≈ 189 CSS px
+  let landingY = 0, landingDismissed = false;
+  function dismissLanding() {
+    if (!landingNav || landingDismissed) return;
+    landingDismissed = true;
+    landingNav.classList.add('fade');
+    document.body.classList.remove('landing-top');
+    setTimeout(() => { landingNav.hidden = true; }, 340);
+  }
+  function onLandingScroll() {
+    if (landingDismissed) return;
+    if (Math.abs(window.scrollY - landingY) > FIVE_CM) dismissLanding();
+  }
+  document.getElementById('landingTop')?.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  document.getElementById('landingPlayoff')?.addEventListener('click', () => { dismissLanding(); openPlayoff(); });
+  window.addEventListener('scroll', onLandingScroll, { passive: true });
+
+  // On first load, jump straight to today's matches, then arm the landing nav.
+  // setTimeout (not rAF) so it still runs if the tab loads in the background.
+  setTimeout(() => {
     const t = findTodayHeader();
     if (t) window.scrollTo({ top: Math.max(0, window.scrollY + t.getBoundingClientRect().top - 58), behavior: 'instant' });
-  }, 0));
+    landingY = window.scrollY;
+    if (landingNav) { landingNav.hidden = false; landingNav.classList.remove('fade'); document.body.classList.add('landing-top'); }
+  }, 0);
 }
 
 init();

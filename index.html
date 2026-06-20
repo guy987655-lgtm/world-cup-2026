@@ -7,6 +7,14 @@
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
+  <div id="landingNav" class="landing-nav" hidden>
+    <button type="button" id="landingPlayoff" class="landing-btn landing-playoff">
+      <span class="ln-icon">🏆</span><span data-i18n="playoffBtn">אזור הפלייאוף</span>
+    </button>
+    <button type="button" id="landingTop" class="landing-btn landing-top-btn">
+      <span data-i18n="scrollTop">גלול למעלה</span><span class="ln-icon">⤴</span>
+    </button>
+  </div>
   <button type="button" id="langToggle" class="lang-toggle" aria-label="Toggle language">EN</button>
   <button type="button" id="refreshBtn" class="refresh-fab" aria-label="רענן תוצאות"><span class="r-icon">🔄</span><span class="r-text" data-i18n="refresh">רענן תוצאות</span></button>
   <button type="button" id="collapseAllBtn" class="collapse-fab" hidden><span class="c-icon">▴</span><span class="c-text" data-i18n="collapseAll">סגור הכל</span></button>

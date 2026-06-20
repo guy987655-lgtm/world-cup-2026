@@ -131,6 +131,47 @@ select {
 .collapse-fab:hover { background: #4a82bd; }
 .collapse-fab[hidden] { display: none; }
 .collapse-fab .c-icon { font-size: .9rem; line-height: 1; }
+
+/* Landing quick-nav: scroll-to-top (right) + playoff (left), shown on arrival.
+   direction:ltr pins each child to a physical side regardless of RTL. */
+.landing-nav {
+  position: fixed;
+  top: 8px; left: 8px; right: 8px;
+  z-index: 250;
+  display: flex;
+  justify-content: space-between;
+  direction: ltr;
+  pointer-events: none;
+  transition: opacity .32s;
+}
+.landing-nav[hidden] { display: none; }
+.landing-nav.fade { opacity: 0; pointer-events: none; }
+.landing-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  border-radius: 14px;
+  padding: 9px 15px;
+  font-family: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.42);
+  transition: background .15s, transform .15s;
+}
+.landing-btn:hover { transform: translateY(-1px); }
+.landing-playoff { background: linear-gradient(160deg, #2350b8, #16307a); color: #fff; }
+.landing-playoff:hover { background: linear-gradient(160deg, #2a5fd0, #1a3a92); }
+.landing-top-btn { background: rgba(255,210,74,0.95); color: #0a3d2e; }
+.landing-top-btn:hover { background: #ffd24a; }
+.ln-icon { font-size: 1.05rem; line-height: 1; }
+/* On the landing screen the top row stays clean — hide the corner FABs */
+body.landing-top .refresh-fab,
+body.landing-top .collapse-fab,
+body.landing-top .today-btn { display: none !important; }
+body.playoff-mode .landing-nav { display: none !important; }
 .day-group { margin-bottom: 18px; }
 .day-header {
   font-size: 1rem; font-weight: 700; color: #ffd24a;
