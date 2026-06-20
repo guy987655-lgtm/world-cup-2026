@@ -601,10 +601,12 @@ function buildMatchCard(k) {
   };
   const conv = matchInTz(x);
   const dow = tDow(conv.date);
-  const when = `${tDate(conv.date)}${conv.time ? ' · ' + conv.time : ''}`;
+  const when = `${tDate(conv.date)}${dow ? ' · ' + dow : ''}${conv.time ? ' · ' + conv.time : ''}`;
   const clickable = !k.finalized;
   const inWin = inWindow(x); // played inside the kids time window → green frame
+  const done = hasScore && !live; // match already played & decided → green check
   return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}${inWin ? ' bk-window' : ''}" data-num="${k.num}">
+    ${done ? '<span class="bk-done" aria-label="הסתיים">✓</span>' : ''}
     <div class="bk-when">${when}${live ? ` <span class="bk-livebadge">${T('live')}</span>` : ''}</div>
     ${row(m1, s1, k.side1)}
     ${row(m2, s2, k.side2)}

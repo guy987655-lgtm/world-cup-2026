@@ -736,6 +736,14 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .bk-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }
 .bk-name.bk-ph { color: var(--bk-muted); font-style: italic; font-weight: 600; }
 .bk-name.bk-proj { color: #cdd9ff; font-style: italic; font-weight: 700; }
+/* Match already played & decided → green check at the top-left of the card */
+.bk-done {
+  position: absolute; top: 4px; left: 4px; z-index: 3;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #27ae60; color: #fff; font-size: .62rem; font-weight: 900; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.45);
+}
 .bk-sub { display: block; font-size: .56rem; color: #6f83b8; font-style: italic; }
 .bk-score { font-weight: 800; color: #ffd24a; flex-shrink: 0; min-width: 14px; text-align: center; }
 .bk-row.bk-win .bk-name { color: #fff; font-weight: 800; }
