@@ -736,6 +736,38 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .bk-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }
 .bk-name.bk-ph { color: var(--bk-muted); font-style: italic; font-weight: 600; }
 .bk-name.bk-proj { color: #cdd9ff; font-style: italic; font-weight: 700; }
+/* Likely exact-scoreline list (schedule expand panel + playoff scenario modal) */
+.sl-list { display: flex; flex-direction: column; gap: 4px; }
+.sl-row { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 6px; background: rgba(255,255,255,0.05); }
+.sl-teams { flex: 1; min-width: 0; font-size: .82rem; font-weight: 600; }
+.sl-g { font-weight: 800; color: #ffd24a; padding: 0 3px; }
+.sl-dash { opacity: .6; }
+.sl-pct { font-weight: 800; color: #ffd24a; min-width: 36px; text-align: left; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.sl-row.sl-actual { background: rgba(39,174,96,0.22); box-shadow: inset 0 0 0 1px rgba(39,174,96,0.55); }
+.sl-tag { font-size: .56rem; font-weight: 800; background: #27ae60; color: #fff; border-radius: 4px; padding: 2px 6px; flex-shrink: 0; }
+.prob-scores { margin-top: 12px; }
+/* "Likely scorelines" heading + its accuracy-stats icon button */
+.sl-title { display: flex; align-items: center; gap: 7px; }
+.sl-stats-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; flex-shrink: 0;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; cursor: pointer; color: #ffd24a; transition: background .15s;
+}
+.sl-stats-btn:hover { background: rgba(255,255,255,0.18); }
+.sl-stats-btn svg rect { fill: currentColor; }
+/* Prediction-accuracy popup */
+#predAccModal { z-index: 1100; }
+.pa-modal { max-width: 420px; }
+.pa-sub { font-size: .78rem; color: var(--bk-muted, #9fd6bf); margin-bottom: 12px; line-height: 1.4; }
+.pa-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; }
+.pa-label { flex: 0 0 38%; font-size: .82rem; font-weight: 700; }
+.pa-bar-wrap { flex: 1; height: 10px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; }
+.pa-bar { display: block; height: 100%; background: linear-gradient(90deg, #ffd24a, #f0a830); border-radius: 6px; }
+.pa-row.pa-other .pa-bar { background: rgba(255,255,255,0.3); }
+.pa-val { flex-shrink: 0; min-width: 64px; text-align: left; font-weight: 800; color: #ffd24a; font-variant-numeric: tabular-nums; }
+.pa-row.pa-other .pa-val { color: #cdd9ff; }
+.pa-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); font-size: .8rem; font-weight: 700; color: var(--bk-muted, #9fd6bf); text-align: center; }
 /* Match already played & decided → green check at the top-left of the card */
 .bk-done {
   position: absolute; top: 4px; left: 4px; z-index: 3;

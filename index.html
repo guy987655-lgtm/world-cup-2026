@@ -158,6 +158,7 @@
       <div class="prob-slot" id="probModalSlot"></div>
       <div class="prob-scen-label" data-i18n="probScenarios">תרחישי יריבות אפשריים</div>
       <div class="modal-body" id="probModalBody"></div>
+      <div class="prob-scores" id="probModalScores" hidden></div>
       <div class="prob-foot" id="probModalFoot"></div>
     </div>
   </div>
@@ -182,6 +183,14 @@
         </div>
       </div>
       <div class="modal-body" id="allScenBody"></div>
+    </div>
+  </div>
+  <div class="modal-overlay prob-overlay" id="predAccModal" hidden>
+    <div class="modal prob-modal pa-modal" role="dialog" aria-modal="true" aria-labelledby="predAccTitle">
+      <button type="button" class="modal-close" id="closePredAcc" aria-label="סגור">✕</button>
+      <h3 id="predAccTitle" data-i18n="predAccTitle">דיוק התחזיות</h3>
+      <div class="pa-sub" id="predAccSub"></div>
+      <div class="modal-body" id="predAccBody"></div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>

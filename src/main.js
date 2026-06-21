@@ -75,6 +75,13 @@ const STR = {
     topModalTitle: 'נבחרות הטופ', scorerModalTitle: 'מלך השערים',
     collapseAll: 'סגור הכל',
     scrollTop: 'גלול למעלה',
+    likelyScores: 'תוצאות סבירות',
+    actualResult: 'בפועל',
+    predAccTitle: 'דיוק התחזיות',
+    predAccDesc: 'מתוך המשחקים שהסתיימו — כמה פעמים התוצאה בפועל תאמה לכל תחזית',
+    predAccP1: 'תחזית 1 (הסבירה ביותר)', predAccP2: 'תחזית 2', predAccP3: 'תחזית 3', predAccOther: 'תוצאה אחרת',
+    predAccTotal: n => `סה״כ משחקים שהסתיימו: ${n}`,
+    predAccNone: 'עדיין אין משחקים שהסתיימו עם נבחרות ידועות',
     playoffBtn: 'אזור הפלייאוף', playoffTitle: 'אזור הפלייאוף',
     backToSchedule: 'חזרה לשלב הבתים',
     playoffHint: 'לחצו על משחק עתידי כדי לראות הסתברויות יריבות',
@@ -128,6 +135,13 @@ const STR = {
     topModalTitle: 'Top teams', scorerModalTitle: 'Top scorers',
     collapseAll: 'Collapse all',
     scrollTop: 'Scroll to top',
+    likelyScores: 'Likely scorelines',
+    actualResult: 'Actual',
+    predAccTitle: 'Prediction accuracy',
+    predAccDesc: 'Across finished matches — how often the actual result matched each prediction',
+    predAccP1: 'Prediction 1 (most likely)', predAccP2: 'Prediction 2', predAccP3: 'Prediction 3', predAccOther: 'Other result',
+    predAccTotal: n => `Finished matches: ${n}`,
+    predAccNone: 'No finished matches with known teams yet',
     playoffBtn: 'Playoff Zone', playoffTitle: 'Playoff Zone',
     backToSchedule: 'Back to group stage',
     playoffHint: 'Tap a future match to see matchup probabilities',
@@ -374,7 +388,8 @@ function projectedTeam(part, proj) {
 // might actually meet there. Re-run on every data refresh → live-responsive.
 const SIM_N = 3000;          // simulations per run
 const SIM_BASE = 1.32;       // baseline expected goals per side
-const SIM_ALPHA = 1.0;       // how strongly the seed gap skews the scoreline
+const SIM_ALPHA = 3.5;       // how strongly the seed gap skews the scoreline (tuned to bookmaker lines)
+const SIM_LMIN = 0.35, SIM_LMAX = 3.4; // keep extreme mismatches realistic
 const LIVE_REMAIN = 0.4;     // fraction of scoring still to come in a live match
 const SEP = '␟';        // internal key separator (won't appear in names)
 
@@ -382,9 +397,19 @@ function isRealTeam(s) { return SEED[s] != null || TEAM_EN[s] != null; }
 function ratingFromSeed(name) { return (48 - (SEED[name] || 40)) / 47; }
 function simLambdas(r1, r2) {
   const d = (r1 - r2) * SIM_ALPHA * 0.5;
-  return [SIM_BASE * Math.exp(d), SIM_BASE * Math.exp(-d)];
+  const cap = l => Math.max(SIM_LMIN, Math.min(SIM_LMAX, l));
+  return [cap(SIM_BASE * Math.exp(d)), cap(SIM_BASE * Math.exp(-d))];
 }
 function simPoisson(l) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *= Math.random(); } while (p > L); return k - 1; }
+// Exact-scoreline probabilities from the same Poisson model: P(g1,g2) =
+// pmf(g1;λ1)·pmf(g2;λ2). Returns the n most likely {g1,g2,p}.
+function poissonPmf(k, l) { let f = 1; for (let i = 2; i <= k; i++) f *= i; return Math.exp(-l) * Math.pow(l, k) / f; }
+function topScorelines(t1, t2, n = 3) {
+  const [l1, l2] = simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
+  const out = [];
+  for (let g1 = 0; g1 <= 6; g1++) for (let g2 = 0; g2 <= 6; g2++) out.push({ g1, g2, p: poissonPmf(g1, l1) * poissonPmf(g2, l2) });
+  return out.sort((a, b) => b.p - a.p).slice(0, n);
+}
 function emptyRec() { return { w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }; }
 function applyPair(h, a, hg, ag) {
   h.gf += hg; h.ga += ag; a.gf += ag; a.ga += hg;
@@ -551,6 +576,7 @@ function scenarioList(num, data) {
 // ── Bracket view ────────────────────────────────────────────────────────
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
 const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, asTeam: '' };
+let CURRENT_MATCHES = []; // latest match list, for the prediction-accuracy popup
 
 // Top-to-bottom order within each round so the connector lines pair up correctly
 const BK_ROUNDS = ['32 הגדולות', 'שמינית גמר', 'רבע גמר', 'חצי גמר', 'גמר'];
@@ -785,6 +811,15 @@ function openProbModal(num) {
         <span class="prob-pct">${pct}%</span>
       </div>`;
     }).join('');
+  }
+  // Likely exact scorelines for the current-status (projected) matchup
+  const cur = data.current[num];
+  const scoresEl = document.getElementById('probModalScores');
+  if (scoresEl) {
+    if (cur && isRealTeam(cur[0]) && isRealTeam(cur[1])) {
+      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn()}</div><div class="sl-list">${scorelineRows(cur[0], cur[1])}</div>`;
+      scoresEl.hidden = false;
+    } else { scoresEl.hidden = true; scoresEl.innerHTML = ''; }
   }
   document.getElementById('probModalFoot').textContent = T('probCurrentHint');
   document.getElementById('probModal').hidden = false;
@@ -1239,12 +1274,86 @@ function goalsHtml(goals) {
 
 // Expandable panel content per match state:
 // pre → odds + recent form · live → scorers + possession + group table · post → scorers
+// The two real team names of a match (group or finalized KO), else null
+function matchRealTeams(m) {
+  let parts;
+  if (isKnockoutRow(m)) {
+    const body = m.match.replace(/^משחק \d+( \(הגמר!\))?: /, '');
+    const i = body.indexOf(' - ');
+    if (i < 0) return null;
+    parts = [body.slice(0, i).trim(), body.slice(i + 3).trim()];
+  } else {
+    parts = teamsOf(m);
+  }
+  return parts.length === 2 && isRealTeam(parts[0]) && isRealTeam(parts[1]) ? parts : null;
+}
+// Rows of the 3 most likely pre-match exact scorelines (digits sit next to each
+// team). If `actual` ("g1-g2", in t1-t2 order) is given, the matching row is
+// flagged; if the actual result wasn't in the top 3 it's appended as a 4th row.
+function scorelineRows(t1, t2, actual) {
+  const top = topScorelines(t1, t2, 3);
+  let act = null;
+  if (actual) {
+    const [a1, a2] = actual.split('-').map(s => parseInt(s.trim(), 10));
+    if (Number.isInteger(a1) && Number.isInteger(a2)) {
+      const [l1, l2] = simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
+      act = { g1: a1, g2: a2, p: poissonPmf(a1, l1) * poissonPmf(a2, l2) };
+    }
+  }
+  const same = s => act && s.g1 === act.g1 && s.g2 === act.g2;
+  const row = (s, mark) => {
+    const pct = Math.round(s.p * 100);
+    return `<div class="sl-row${mark ? ' sl-actual' : ''}">
+      <span class="sl-teams">${flagOf(t1)} ${tTeam(t1)} <b class="sl-g">${s.g1}</b><span class="sl-dash">–</span><b class="sl-g">${s.g2}</b> ${tTeam(t2)} ${flagOf(t2)}</span>
+      ${mark ? `<span class="sl-tag">${T('actualResult')}</span>` : ''}
+      <span class="sl-pct">${pct < 1 ? '<1' : pct}%</span>
+    </div>`;
+  };
+  let html = top.map(s => row(s, same(s))).join('');
+  if (act && !top.some(same)) html += row(act, true);
+  return html;
+}
+
+// Back-test: across every finished match with known teams, how often the actual
+// result matched the model's 1st / 2nd / 3rd pick (or none — "other").
+function predictionAccuracy(MATCHES) {
+  let r1 = 0, r2 = 0, r3 = 0, other = 0, total = 0;
+  (MATCHES || []).forEach(m => {
+    if (m.live || !m.score) return;
+    const teams = matchRealTeams(m);
+    if (!teams) return;
+    const [a1, a2] = m.score.split('-').map(s => parseInt(s.trim(), 10));
+    if (!Number.isInteger(a1) || !Number.isInteger(a2)) return;
+    total++;
+    const idx = topScorelines(teams[0], teams[1], 3).findIndex(s => s.g1 === a1 && s.g2 === a2);
+    if (idx === 0) r1++; else if (idx === 1) r2++; else if (idx === 2) r3++; else other++;
+  });
+  return { r1, r2, r3, other, total };
+}
+// Small "descending bars" icon button that opens the accuracy popup
+function statsBtn() {
+  return `<button type="button" class="sl-stats-btn" title="${T('predAccTitle')}" aria-label="${T('predAccTitle')}"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="1" y="2.5" width="3.4" height="11" rx="1"/><rect x="6.3" y="6" width="3.4" height="7.5" rx="1"/><rect x="11.6" y="9.5" width="3.4" height="4" rx="1"/></svg></button>`;
+}
+
 function buildExtPanel(m, MATCHES) {
   const x = m.ext;
-  if (!x) return null;
   const panel = document.createElement('div');
   panel.className = 'ext-panel';
   const [n1, n2] = rowTeamLabels(m);
+
+  // Pre-match top-3 exact scorelines for matches with two known teams. Shown
+  // for unplayed matches, and for finished ones too (with the actual flagged).
+  const realTeams = matchRealTeams(m);
+  const finished = !!m.score && !m.live;
+  const scoresHtml = (realTeams && !m.live)
+    ? `<div class="ext-sec-title sl-title">${T('likelyScores')} ${statsBtn()}</div><div class="sl-list">${scorelineRows(realTeams[0], realTeams[1], finished ? m.score : null)}</div>`
+    : '';
+
+  if (!x) {
+    if (!scoresHtml) return null;
+    panel.innerHTML = scoresHtml;
+    return panel;
+  }
 
   if (x.state === 'pre') {
     let html = '';
@@ -1263,6 +1372,7 @@ function buildExtPanel(m, MATCHES) {
       if (x.form2) html += `<div class="form-row"><span>${n2}</span>${formHtml(x.form2)}</div>`;
       html += `</div>`;
     }
+    html += scoresHtml;
     if (!html) return null;
     panel.innerHTML = html;
     return panel;
@@ -1291,6 +1401,8 @@ function buildExtPanel(m, MATCHES) {
         <div class="odds-cell"><span class="odds-team">${n2}</span><span class="odds-val">${x.odds2Live}</span></div>
       </div>`);
   }
+  // Pre-match top-3 prediction vs the actual result (finished matches)
+  if (scoresHtml) panel.insertAdjacentHTML('beforeend', scoresHtml);
   // Group standings shown for both live and finished group-stage matches
   if (!isKnockoutRow(m)) {
     panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
@@ -1576,6 +1688,7 @@ async function init() {
   const expandedLive = new Set();
 
   function render() {
+    CURRENT_MATCHES = MATCHES;
     const savedDate = getTopmostVisibleDate();
 
     let rows = MATCHES.filter(m => {
@@ -2002,6 +2115,42 @@ async function init() {
     document.getElementById('closeAllScen').addEventListener('click', () => { allScenModal.hidden = true; closeAsPanel(); });
     allScenModal.addEventListener('click', e => { if (e.target === allScenModal) allScenModal.hidden = true; });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !allScenModal.hidden) allScenModal.hidden = true; });
+  }
+
+  // Prediction-accuracy popup — opened by the descending-bars icon next to any
+  // "likely scorelines" heading (schedule expand panel or playoff scenario box)
+  const predAccModal = document.getElementById('predAccModal');
+  function openPredAcc() {
+    const acc = predictionAccuracy(CURRENT_MATCHES);
+    const sub = document.getElementById('predAccSub');
+    const body = document.getElementById('predAccBody');
+    if (!acc.total) {
+      sub.textContent = '';
+      body.innerHTML = `<div class="prob-empty">${T('predAccNone')}</div>`;
+    } else {
+      sub.textContent = T('predAccDesc');
+      const rows = [
+        { label: T('predAccP1'), n: acc.r1 },
+        { label: T('predAccP2'), n: acc.r2 },
+        { label: T('predAccP3'), n: acc.r3 },
+        { label: T('predAccOther'), n: acc.other, other: true },
+      ];
+      body.innerHTML = rows.map(r => {
+        const pct = Math.round(r.n / acc.total * 100);
+        return `<div class="pa-row${r.other ? ' pa-other' : ''}">
+          <span class="pa-label">${r.label}</span>
+          <span class="pa-bar-wrap"><span class="pa-bar" style="width:${pct}%"></span></span>
+          <span class="pa-val">${r.n} · ${pct}%</span>
+        </div>`;
+      }).join('') + `<div class="pa-total">${T('predAccTotal', acc.total)}</div>`;
+    }
+    predAccModal.hidden = false;
+  }
+  if (predAccModal) {
+    document.addEventListener('click', e => { if (e.target.closest('.sl-stats-btn')) { e.stopPropagation(); openPredAcc(); } });
+    document.getElementById('closePredAcc').addEventListener('click', () => { predAccModal.hidden = true; });
+    predAccModal.addEventListener('click', e => { if (e.target === predAccModal) predAccModal.hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !predAccModal.hidden) predAccModal.hidden = true; });
   }
 
   if (probModal) {
