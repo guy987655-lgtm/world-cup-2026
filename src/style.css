@@ -768,13 +768,28 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .pa-val { flex-shrink: 0; min-width: 64px; text-align: left; font-weight: 800; color: #ffd24a; font-variant-numeric: tabular-nums; }
 .pa-row.pa-other .pa-val { color: #cdd9ff; }
 .pa-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); font-size: .8rem; font-weight: 700; color: var(--bk-muted, #9fd6bf); text-align: center; }
-/* Match already played & decided → green check at the top-left of the card */
+/* Carousel: slide 1 = accuracy, slide 2 = common-results breakdown */
+.pa-modal .modal-body { overflow: hidden; }
+.pa-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.pa-carousel::-webkit-scrollbar { display: none; }
+.pa-slide { flex: 0 0 100%; min-width: 100%; box-sizing: border-box; scroll-snap-align: start; padding: 2px; }
+.pa-score { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.pa-dots { display: flex; justify-content: center; gap: 7px; margin-top: 12px; }
+.pa-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.28); cursor: pointer; transition: background .2s; }
+.pa-dot.active { background: #ffd24a; }
+.pa-swipe-hint { text-align: center; font-size: .7rem; color: var(--bk-muted, #9fd6bf); margin-top: 6px; }
+/* Top-end corner of a bracket card: matchup play-chance % or a locked-in ✓.
+   Sits at the inline-end of the date row → top-left in RTL, top-right in LTR. */
+.bk-when-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-prob {
+  flex-shrink: 0; font-size: .56rem; font-weight: 800; color: #cdd9ff;
+  background: rgba(70,111,208,0.28); border: 1px solid rgba(120,150,230,0.45);
+  border-radius: 4px; padding: 1px 4px; line-height: 1.3;
+}
 .bk-done {
-  position: absolute; top: 4px; left: 4px; z-index: 3;
-  width: 16px; height: 16px; border-radius: 50%;
-  background: #27ae60; color: #fff; font-size: .62rem; font-weight: 900; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.45);
+  flex-shrink: 0; width: 15px; height: 15px; border-radius: 50%;
+  background: #27ae60; color: #fff; font-size: .58rem; font-weight: 900; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .bk-sub { display: block; font-size: .56rem; color: #6f83b8; font-style: italic; }
 .bk-score { font-weight: 800; color: #ffd24a; flex-shrink: 0; min-width: 14px; text-align: center; }

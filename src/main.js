@@ -82,6 +82,9 @@ const STR = {
     predAccP1: 'תחזית 1 (הסבירה ביותר)', predAccP2: 'תחזית 2', predAccP3: 'תחזית 3', predAccOther: 'תוצאה אחרת',
     predAccTotal: n => `סה״כ משחקים שהסתיימו: ${n}`,
     predAccNone: 'עדיין אין משחקים שהסתיימו עם נבחרות ידועות',
+    commonResTitle: 'התוצאות הנפוצות', commonResDesc: 'פילוח לפי תוצאה (ללא תלות בנבחרת)',
+    restRow: 'כל השאר', swipeHint: 'החליקו שמאלה לפילוח התוצאות →',
+    playChance: 'הסיכוי שהמשחק הזה ישוחק', matchupSet: 'המשחק נקבע',
     playoffBtn: 'אזור הפלייאוף', playoffTitle: 'אזור הפלייאוף',
     backToSchedule: 'חזרה לשלב הבתים',
     playoffHint: 'לחצו על משחק עתידי כדי לראות הסתברויות יריבות',
@@ -142,6 +145,9 @@ const STR = {
     predAccP1: 'Prediction 1 (most likely)', predAccP2: 'Prediction 2', predAccP3: 'Prediction 3', predAccOther: 'Other result',
     predAccTotal: n => `Finished matches: ${n}`,
     predAccNone: 'No finished matches with known teams yet',
+    commonResTitle: 'Most common results', commonResDesc: 'Breakdown by scoreline (regardless of team)',
+    restRow: 'All the rest', swipeHint: '← Swipe for the result breakdown',
+    playChance: 'Chance this matchup is played', matchupSet: 'Matchup set',
     playoffBtn: 'Playoff Zone', playoffTitle: 'Playoff Zone',
     backToSchedule: 'Back to group stage',
     playoffHint: 'Tap a future match to see matchup probabilities',
@@ -573,6 +579,16 @@ function scenarioList(num, data) {
   return { top, curKey };
 }
 
+// Probability that the currently-shown (current-status) matchup is the one
+// actually played at this slot. null if there's no projected pair yet.
+function matchupProbability(num) {
+  const data = PLAYOFF.data;
+  const cur = data && data.current[num];
+  if (!cur || !cur[0] || !cur[1]) return null;
+  const e = (data.prob[num] || []).find(x => (x.a === cur[0] && x.b === cur[1]) || (x.a === cur[1] && x.b === cur[0]));
+  return e ? e.pct : 0;
+}
+
 // ── Bracket view ────────────────────────────────────────────────────────
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
 const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, asTeam: '' };
@@ -630,10 +646,17 @@ function buildMatchCard(k) {
   const when = `${tDate(conv.date)}${dow ? ' · ' + dow : ''}${conv.time ? ' · ' + conv.time : ''}`;
   const clickable = !k.finalized;
   const inWin = inWindow(x); // played inside the kids time window → green frame
-  const done = hasScore && !live; // match already played & decided → green check
+  // Top-end corner: chance this exact matchup is the one played here; a green ✓
+  // once the matchup is locked (certain). Live matches just show the live badge.
+  let corner;
+  if (live) corner = `<span class="bk-livebadge">${T('live')}</span>`;
+  else if (k.finalized) corner = `<span class="bk-done" aria-label="${T('matchupSet')}">✓</span>`;
+  else {
+    const p = matchupProbability(k.num);
+    corner = p == null ? '' : `<span class="bk-prob" title="${T('playChance')}">${p < 0.005 ? '<1%' : Math.round(p * 100) + '%'}</span>`;
+  }
   return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}${inWin ? ' bk-window' : ''}" data-num="${k.num}">
-    ${done ? '<span class="bk-done" aria-label="הסתיים">✓</span>' : ''}
-    <div class="bk-when">${when}${live ? ` <span class="bk-livebadge">${T('live')}</span>` : ''}</div>
+    <div class="bk-when"><span class="bk-when-txt">${when}</span>${corner}</div>
     ${row(m1, s1, k.side1)}
     ${row(m2, s2, k.side2)}
   </div>`;
@@ -1329,6 +1352,22 @@ function predictionAccuracy(MATCHES) {
     if (idx === 0) r1++; else if (idx === 1) r2++; else if (idx === 2) r3++; else other++;
   });
   return { r1, r2, r3, other, total };
+}
+// Distribution of actual scorelines across finished matches, grouped by margin
+// (e.g. 0-2 and 2-0 both count as "2-0"), most common first.
+function commonResults(MATCHES) {
+  const map = new Map();
+  let total = 0;
+  (MATCHES || []).forEach(m => {
+    if (m.live || !m.score) return;
+    if (!matchRealTeams(m)) return;
+    const [a, b] = m.score.split('-').map(s => parseInt(s.trim(), 10));
+    if (!Number.isInteger(a) || !Number.isInteger(b)) return;
+    total++;
+    const key = `${Math.max(a, b)}-${Math.min(a, b)}`;
+    map.set(key, (map.get(key) || 0) + 1);
+  });
+  return { arr: [...map.entries()].map(([score, n]) => ({ score, n })).sort((x, y) => y.n - x.n), total };
 }
 // Small "descending bars" icon button that opens the accuracy popup
 function statsBtn() {
@@ -2120,30 +2159,56 @@ async function init() {
   // Prediction-accuracy popup — opened by the descending-bars icon next to any
   // "likely scorelines" heading (schedule expand panel or playoff scenario box)
   const predAccModal = document.getElementById('predAccModal');
+  const paRow = (label, n, total, other) => {
+    const pct = total ? Math.round(n / total * 100) : 0;
+    return `<div class="pa-row${other ? ' pa-other' : ''}">
+      <span class="pa-label">${label}</span>
+      <span class="pa-bar-wrap"><span class="pa-bar" style="width:${pct}%"></span></span>
+      <span class="pa-val">${n} · ${pct}%</span>
+    </div>`;
+  };
   function openPredAcc() {
-    const acc = predictionAccuracy(CURRENT_MATCHES);
-    const sub = document.getElementById('predAccSub');
+    const titleEl = document.getElementById('predAccTitle');
+    const subEl = document.getElementById('predAccSub');
     const body = document.getElementById('predAccBody');
+    const acc = predictionAccuracy(CURRENT_MATCHES);
     if (!acc.total) {
-      sub.textContent = '';
+      titleEl.textContent = T('predAccTitle');
+      subEl.textContent = '';
       body.innerHTML = `<div class="prob-empty">${T('predAccNone')}</div>`;
-    } else {
-      sub.textContent = T('predAccDesc');
-      const rows = [
-        { label: T('predAccP1'), n: acc.r1 },
-        { label: T('predAccP2'), n: acc.r2 },
-        { label: T('predAccP3'), n: acc.r3 },
-        { label: T('predAccOther'), n: acc.other, other: true },
-      ];
-      body.innerHTML = rows.map(r => {
-        const pct = Math.round(r.n / acc.total * 100);
-        return `<div class="pa-row${r.other ? ' pa-other' : ''}">
-          <span class="pa-label">${r.label}</span>
-          <span class="pa-bar-wrap"><span class="pa-bar" style="width:${pct}%"></span></span>
-          <span class="pa-val">${r.n} · ${pct}%</span>
-        </div>`;
-      }).join('') + `<div class="pa-total">${T('predAccTotal', acc.total)}</div>`;
+      predAccModal.hidden = false;
+      return;
     }
+    // Slide 1 — how often each prediction rank matched the actual result
+    const slide1 = `<div class="pa-slide">${
+      paRow(T('predAccP1'), acc.r1, acc.total) + paRow(T('predAccP2'), acc.r2, acc.total) +
+      paRow(T('predAccP3'), acc.r3, acc.total) + paRow(T('predAccOther'), acc.other, acc.total, true)
+    }<div class="pa-total">${T('predAccTotal', acc.total)}</div></div>`;
+    // Slide 2 — most common actual scorelines (top 6 + all the rest)
+    const cr = commonResults(CURRENT_MATCHES);
+    const top6 = cr.arr.slice(0, 6);
+    const restN = cr.arr.slice(6).reduce((s, r) => s + r.n, 0);
+    const slide2 = `<div class="pa-slide">${
+      top6.map(r => paRow(`<span class="pa-score" dir="ltr">${r.score.replace('-', '–')}</span>`, r.n, cr.total)).join('') +
+      paRow(T('restRow'), restN, cr.total, true)
+    }<div class="pa-total">${T('predAccTotal', cr.total)}</div></div>`;
+
+    body.innerHTML = `<div class="pa-carousel">${slide1}${slide2}</div>
+      <div class="pa-dots"><span class="pa-dot"></span><span class="pa-dot"></span></div>
+      <div class="pa-swipe-hint">${T('swipeHint')}</div>`;
+    const carousel = body.querySelector('.pa-carousel');
+    const slides = carousel.querySelectorAll('.pa-slide');
+    const dots = body.querySelectorAll('.pa-dot');
+    const titles = [T('predAccTitle'), T('commonResTitle')];
+    const subs = [T('predAccDesc'), T('commonResDesc')];
+    const apply = idx => {
+      titleEl.textContent = titles[idx];
+      subEl.textContent = subs[idx];
+      dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    };
+    carousel.addEventListener('scroll', () => apply(Math.min(1, Math.round(Math.abs(carousel.scrollLeft) / (carousel.clientWidth || 1)))), { passive: true });
+    dots.forEach((d, i) => d.addEventListener('click', () => slides[i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })));
+    apply(0);
     predAccModal.hidden = false;
   }
   if (predAccModal) {
