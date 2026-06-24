@@ -92,7 +92,7 @@ const STR = {
     scenCount: n => `מספר התרחישים: ${n}`,
     pairFilter: 'מפגש בין', choose: 'בחר נבחרת', vsWord: 'מול',
     meetChance: s => `סיכוי מפגש: ${s}%`,
-    allScenBtn: 'תרחישי מפגשים', allScenTitle: 'כל תרחישי המפגשים', onlyTopScen: 'רק עם נבחרת טופ',
+    likelyMode: 'תרחיש סביר ביותר',
     probScenarios: 'תרחישי יריבות אפשריים',
     probCurrent: 'מצב נוכחי', probCurrentHint: 'היריבות אם שלב הבתים יסתיים כעת',
     probCalc: 'מחשב הסתברויות…', probDecided: 'המפגש כבר נקבע',
@@ -155,7 +155,7 @@ const STR = {
     scenCount: n => `Scenarios: ${n}`,
     pairFilter: 'Matchup between', choose: 'Choose team', vsWord: 'vs',
     meetChance: s => `Meeting chance: ${s}%`,
-    allScenBtn: 'Matchup scenarios', allScenTitle: 'All matchup scenarios', onlyTopScen: 'Top teams only',
+    likelyMode: 'Most likely bracket',
     probScenarios: 'Possible matchup scenarios',
     probCurrent: 'Current status', probCurrentHint: 'The matchup if the group stage ended now',
     probCalc: 'Calculating…', probDecided: 'Matchup already decided',
@@ -579,19 +579,19 @@ function scenarioList(num, data) {
   return { top, curKey };
 }
 
-// Probability that the currently-shown (current-status) matchup is the one
-// actually played at this slot. null if there's no projected pair yet.
+// Probability that the slot's currently-shown matchup (per the active scenario
+// mode) is the one actually played here. null if there's no projected pair yet.
 function matchupProbability(num) {
   const data = PLAYOFF.data;
-  const cur = data && data.current[num];
-  if (!cur || !cur[0] || !cur[1]) return null;
-  const e = (data.prob[num] || []).find(x => (x.a === cur[0] && x.b === cur[1]) || (x.a === cur[1] && x.b === cur[0]));
+  const t = slotTeams(num);
+  if (!data || !t[0] || !t[1]) return null;
+  const e = (data.prob[num] || []).find(x => (x.a === t[0] && x.b === t[1]) || (x.a === t[1] && x.b === t[0]));
   return e ? e.pct : 0;
 }
 
 // ── Bracket view ────────────────────────────────────────────────────────
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
-const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, asTeam: '' };
+const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, scenarioMode: 'current' };
 let CURRENT_MATCHES = []; // latest match list, for the prediction-accuracy popup
 
 // Top-to-bottom order within each round so the connector lines pair up correctly
@@ -620,9 +620,9 @@ function sideMeta(side) {
 
 function buildMatchCard(k) {
   const x = k.m;
-  // For unresolved slots, show the current-status projected team (the slot
-  // label moves to a sub-line). Finalized real teams are shown as-is.
-  const cur = (PLAYOFF.data && PLAYOFF.data.current[k.num]) || [];
+  // For unresolved slots, show the projected team per the active scenario mode
+  // (current status / most-likely). The slot label moves to a sub-line.
+  const cur = slotTeams(k.num);
   const projMeta = (meta, team) => {
     if (meta.real || !team) return meta;
     const slot = meta.sub ? `${meta.label} ${meta.sub}` : meta.label;
@@ -835,8 +835,8 @@ function openProbModal(num) {
       </div>`;
     }).join('');
   }
-  // Likely exact scorelines for the current-status (projected) matchup
-  const cur = data.current[num];
+  // Likely exact scorelines for the projected matchup (per the active mode)
+  const cur = slotTeams(num);
   const scoresEl = document.getElementById('probModalScores');
   if (scoresEl) {
     if (cur && isRealTeam(cur[0]) && isRealTeam(cur[1])) {
@@ -848,77 +848,59 @@ function openProbModal(num) {
   document.getElementById('probModal').hidden = false;
 }
 
-// ── All-matchup-scenarios modal ─────────────────────────────────────────
-// Aggregate every possible matchup by (stage, unordered pair). Summing a
-// stage's slots = the chance those two teams meet in that stage.
-function allScenarios() {
-  const map = new Map();
-  PLAYOFF.data.koList.forEach(k => (PLAYOFF.data.prob[k.num] || []).forEach(e => {
-    const [x, y] = [e.a, e.b].sort();
-    const key = k.group + SEP + x + SEP + y;
-    const cur = map.get(key) || { stage: k.group, a: x, b: y, pct: 0 };
-    cur.pct += e.pct;
-    map.set(key, cur);
-  }));
-  return [...map.values()].sort((p, q) => q.pct - p.pct);
-}
-
-// Teams appearing in any matchup scenario (broader than the bracket top-5 list)
-function asTeamList() {
-  const teams = new Set();
-  allScenarios().forEach(r => { teams.add(r.a); teams.add(r.b); });
-  return [...teams].filter(Boolean);
-}
-
-// Build the grouped team dropdown (top teams, then the rest) for the modal,
-// matching the playoff filter style; also refresh the label + clear-button state
-function buildAsTeamPanel() {
-  const panel = document.getElementById('asTeamPanel');
-  if (!panel || !PLAYOFF.data) return;
-  if (PLAYOFF.asTeam && !asTeamList().includes(PLAYOFF.asTeam)) PLAYOFF.asTeam = '';
-  const sortBy = (a, b) => tTeam(a).localeCompare(tTeam(b), lang === 'he' ? 'he' : 'en');
-  const list = asTeamList();
-  const topTeams = list.filter(t => TOP.includes(t)).sort(sortBy);
-  const restTeams = list.filter(t => !TOP.includes(t)).sort(sortBy);
-  panel.innerHTML = '';
-  const addItem = (value, text, cls) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'cs-item' + (cls ? ' ' + cls : '') + (value === PLAYOFF.asTeam ? ' selected' : '');
-    b.dataset.value = value;
-    b.innerHTML = `<span class="cs-main">${text}</span>`;
-    panel.appendChild(b);
+// ── Most-likely consistent bracket ──────────────────────────────────────
+// Builds one coherent bracket: each first-round slot gets its most probable
+// matchup with NO team repeated (a team lands in the slot where its scenario is
+// strongest), then every later round follows from the previous round's winners.
+// Returns { pair:{num:[t1,t2]}, pct:{num} } and is cached on the data object.
+function likelyBracket(data) {
+  const pair = {}, pct = {}, winner = {}, loser = {};
+  const isGroupFed = k => !/משחק/.test(k.side1) && !/משחק/.test(k.side2);
+  const setWin = (num, t1, t2) => {
+    if (!t1 || !t2) return;
+    const w = ratingFromSeed(t1) >= ratingFromSeed(t2) ? t1 : t2;
+    winner[num] = w; loser[num] = w === t1 ? t2 : t1;
   };
-  const addLabel = t => { const d = document.createElement('div'); d.className = 'cs-sec-label'; d.textContent = t; panel.appendChild(d); };
-  const addSep = () => { const d = document.createElement('div'); d.className = 'cs-sep'; panel.appendChild(d); };
-  addItem('', T('allTeams'));
-  if (topTeams.length) { addSep(); addLabel(T('topGroup')); topTeams.forEach(t => addItem(t, `${flagOf(t)} ${tTeam(t)}`, 'cs-indent')); }
-  if (restTeams.length) { addSep(); addLabel(T('restGroup')); restTeams.forEach(t => addItem(t, `${flagOf(t)} ${tTeam(t)}`, 'cs-indent')); }
-  const lbl = document.getElementById('asTeamLabel');
-  if (lbl) lbl.textContent = PLAYOFF.asTeam ? `${flagOf(PLAYOFF.asTeam)} ${tTeam(PLAYOFF.asTeam)}` : T('allTeams');
-  const clr = document.getElementById('asClear');
-  if (clr) clr.disabled = !PLAYOFF.asTeam;
+  // Round 1 — greedy unique assignment, most-confident slots first so each
+  // team ends up in its strongest slot and never appears twice.
+  const used = new Set();
+  data.koList.filter(isGroupFed)
+    .map(k => ({ k, ent: data.prob[k.num] || [] }))
+    .sort((a, b) => (b.ent[0]?.pct || 0) - (a.ent[0]?.pct || 0))
+    .forEach(({ k, ent }) => {
+      const pick = ent.find(e => !used.has(e.a) && !used.has(e.b)) || ent[0];
+      if (!pick) return;
+      pair[k.num] = [pick.a, pick.b]; pct[k.num] = pick.pct;
+      used.add(pick.a); used.add(pick.b);
+      setWin(k.num, pick.a, pick.b);
+    });
+  // Later rounds — continue from the previous round's winners (and losers, for
+  // the 3rd-place match), processed in match-number order.
+  const resolve = side => {
+    let m;
+    if (m = side.match(/^מנצחת משחק (\d+)$/)) return winner[m[1]];
+    if (m = side.match(/^מפסידה משחק (\d+)$/)) return loser[m[1]];
+    return isRealTeam(side) ? side : null;
+  };
+  data.koList.filter(k => !isGroupFed(k)).sort((a, b) => (+a.num) - (+b.num))
+    .forEach(k => {
+      const t1 = resolve(k.side1), t2 = resolve(k.side2);
+      pair[k.num] = [t1, t2];
+      const e = (data.prob[k.num] || []).find(x => (x.a === t1 && x.b === t2) || (x.a === t2 && x.b === t1));
+      pct[k.num] = e ? e.pct : 0;
+      setWin(k.num, t1, t2);
+    });
+  return { pair, pct };
 }
-
-function renderAllScen() {
-  const body = document.getElementById('allScenBody');
-  if (!body) return;
-  if (!PLAYOFF.data) { body.innerHTML = `<div class="prob-empty">${T('probCalc')}</div>`; return; }
-  const topOnly = document.getElementById('asTopOnly')?.checked;
-  const team = PLAYOFF.asTeam;
-  let rows = allScenarios().filter(r => r.pct >= 0.01);
-  if (topOnly) rows = rows.filter(r => TOP.includes(r.a) || TOP.includes(r.b));
-  if (team) rows = rows.filter(r => r.a === team || r.b === team);
-  rows = rows.slice(0, 80);
-  if (!rows.length) { body.innerHTML = `<div class="prob-empty">${T('noMatches')}</div>`; return; }
-  body.innerHTML = rows.map(r => {
-    const pct = Math.round(r.pct * 100);
-    return `<div class="as-row">
-      <span class="as-teams">${flagOf(r.a)} ${tTeam(r.a)} <span class="prob-dash">-</span> ${tTeam(r.b)} ${flagOf(r.b)}</span>
-      <span class="as-stage">${tStage(r.stage)}</span>
-      <span class="as-pct">${pct < 1 ? '<1' : pct}%</span>
-    </div>`;
-  }).join('');
+// The [t1,t2] to display for a slot, per the active scenario mode
+function slotTeams(num) {
+  const data = PLAYOFF.data;
+  if (!data) return [];
+  if (PLAYOFF.scenarioMode === 'likely') {
+    const lb = data.likely || (data.likely = likelyBracket(data));
+    return lb.pair[num] || [];
+  }
+  return data.current[num] || [];
 }
 
 const DOW = {
@@ -2111,49 +2093,14 @@ async function init() {
     buildPlayoffFilterPanel(); applyBracketFilter();
   });
 
-  // All-scenarios modal
-  const allScenBtn = document.getElementById('allScenBtn');
-  const allScenModal = document.getElementById('allScenModal');
-  if (allScenBtn && allScenModal) {
-    const asTeamTrigger = document.getElementById('asTeamTrigger');
-    const asTeamPanel = document.getElementById('asTeamPanel');
-    const closeAsPanel = () => { if (asTeamPanel) { asTeamPanel.hidden = true; asTeamTrigger?.setAttribute('aria-expanded', 'false'); } };
-    allScenBtn.addEventListener('click', () => {
-      if (!PLAYOFF.data) ensurePlayoffData();
-      closeAsPanel();
-      buildAsTeamPanel();
-      renderAllScen();
-      allScenModal.hidden = false;
+  // Scenario-mode toggle: current status (default) ↔ most-likely bracket
+  const scenarioModeToggle = document.getElementById('scenarioModeToggle');
+  if (scenarioModeToggle) {
+    scenarioModeToggle.checked = PLAYOFF.scenarioMode === 'likely';
+    scenarioModeToggle.addEventListener('change', () => {
+      PLAYOFF.scenarioMode = scenarioModeToggle.checked ? 'likely' : 'current';
+      renderBracket();
     });
-    document.getElementById('asTopOnly').addEventListener('change', renderAllScen);
-    if (asTeamTrigger && asTeamPanel) {
-      asTeamTrigger.addEventListener('click', e => {
-        e.stopPropagation();
-        const willOpen = asTeamPanel.hidden;
-        closeAsPanel();
-        if (willOpen) { asTeamPanel.hidden = false; asTeamTrigger.setAttribute('aria-expanded', 'true'); }
-      });
-      asTeamPanel.addEventListener('click', e => {
-        const item = e.target.closest('.cs-item');
-        if (!item) return;
-        e.stopPropagation();
-        PLAYOFF.asTeam = item.dataset.value;
-        closeAsPanel();
-        buildAsTeamPanel();
-        renderAllScen();
-      });
-    }
-    const asClear = document.getElementById('asClear');
-    if (asClear) asClear.addEventListener('click', () => {
-      PLAYOFF.asTeam = '';
-      closeAsPanel();
-      buildAsTeamPanel();
-      renderAllScen();
-    });
-    document.addEventListener('click', e => { if (!e.target.closest('#asTeamWrap')) closeAsPanel(); });
-    document.getElementById('closeAllScen').addEventListener('click', () => { allScenModal.hidden = true; closeAsPanel(); });
-    allScenModal.addEventListener('click', e => { if (e.target === allScenModal) allScenModal.hidden = true; });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !allScenModal.hidden) allScenModal.hidden = true; });
   }
 
   // Prediction-accuracy popup — opened by the descending-bars icon next to any
