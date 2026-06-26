@@ -591,7 +591,7 @@ function matchupProbability(num) {
 
 // ── Bracket view ────────────────────────────────────────────────────────
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
-const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, scenarioMode: 'current' };
+const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, scenarioMode: 'likely' };
 let CURRENT_MATCHES = []; // latest match list, for the prediction-accuracy popup
 
 // Top-to-bottom order within each round so the connector lines pair up correctly
@@ -644,7 +644,9 @@ function buildMatchCard(k) {
   const conv = matchInTz(x);
   const dow = tDow(conv.date);
   const when = `${tDate(conv.date)}${dow ? ' · ' + dow : ''}${conv.time ? ' · ' + conv.time : ''}`;
-  const clickable = !k.finalized;
+  // Every card opens the modal: projected slots show the matchup-scenario
+  // distribution, decided ones show the likely-scoreline predictions.
+  const clickable = true;
   const inWin = inWindow(x); // played inside the kids time window → green frame
   // Top-end corner: chance this exact matchup is the one played here; a green ✓
   // once the matchup is locked (certain). Live matches just show the live badge.
@@ -816,7 +818,7 @@ function openProbModal(num) {
   document.getElementById('probModalSlot').textContent = `${m1.label}${T('probVs')}${m2.label}`;
   const { top, curKey } = scenarioList(num, data);
   const body = document.getElementById('probModalBody');
-  if (!top.length) {
+  if (k.finalized || !top.length) {
     body.innerHTML = `<div class="prob-empty">${T('probDecided')}</div>`;
   } else {
     const pa = PLAYOFF.pairA, pb = PLAYOFF.pairB;
@@ -835,16 +837,19 @@ function openProbModal(num) {
       </div>`;
     }).join('');
   }
-  // Likely exact scorelines for the projected matchup (per the active mode)
-  const cur = slotTeams(num);
+  // Likely exact scorelines for the matchup. For a decided match the two real
+  // teams are known (in score order); if it's already been played, flag the
+  // actual result green — same as the schedule zone's expand panel.
+  const cur = k.finalized ? [k.side1, k.side2] : slotTeams(num);
+  const played = k.finalized && k.m.score && !k.m.live ? k.m.score : null;
   const scoresEl = document.getElementById('probModalScores');
   if (scoresEl) {
     if (cur && isRealTeam(cur[0]) && isRealTeam(cur[1])) {
-      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn()}</div><div class="sl-list">${scorelineRows(cur[0], cur[1])}</div>`;
+      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn()}</div><div class="sl-list">${scorelineRows(cur[0], cur[1], played)}</div>`;
       scoresEl.hidden = false;
     } else { scoresEl.hidden = true; scoresEl.innerHTML = ''; }
   }
-  document.getElementById('probModalFoot').textContent = T('probCurrentHint');
+  document.getElementById('probModalFoot').textContent = k.finalized ? '' : T('probCurrentHint');
   document.getElementById('probModal').hidden = false;
 }
 
@@ -2093,7 +2098,7 @@ async function init() {
     buildPlayoffFilterPanel(); applyBracketFilter();
   });
 
-  // Scenario-mode toggle: current status (default) ↔ most-likely bracket
+  // Scenario-mode toggle: most-likely bracket (default) ↔ current status
   const scenarioModeToggle = document.getElementById('scenarioModeToggle');
   if (scenarioModeToggle) {
     scenarioModeToggle.checked = PLAYOFF.scenarioMode === 'likely';
