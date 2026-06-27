@@ -298,6 +298,18 @@ body.playoff-mode .landing-nav { display: none !important; }
   letter-spacing: .04em;
   margin-bottom: 4px;
 }
+.ext-stake { margin-bottom: 10px; }
+.stake-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 9px; margin-bottom: 5px; border-radius: 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid #2a5c47;
+}
+.stake-team { font-weight: 700; font-size: .85rem; }
+.stake-status { font-size: .72rem; font-weight: 700; text-align: left; }
+.stake-through, .stake-drawEnough, .stake-winThrough { color: #5fd19f; }
+.stake-mustWin, .stake-fighting { color: #ffd24a; }
+.stake-out { color: #e98a8a; }
+.stake-note { font-size: .66rem; color: #6fa68f; margin-top: 2px; line-height: 1.35; }
 .ext-odds { display: flex; gap: 8px; margin-bottom: 10px; }
 .odds-cell {
   flex: 1;
@@ -759,6 +771,12 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 }
 .sl-stats-btn:hover { background: rgba(255,255,255,0.18); }
 .sl-stats-btn svg rect { fill: currentColor; }
+.sl-mkt {
+  font-size: .62rem; font-weight: 700; letter-spacing: .02em;
+  padding: 2px 7px; border-radius: 999px;
+  background: rgba(95,209,159,0.15); color: #5fd19f;
+  border: 1px solid rgba(95,209,159,0.35); white-space: nowrap;
+}
 /* Prediction-accuracy popup */
 #predAccModal { z-index: 1100; }
 .pa-modal { max-width: 420px; }
@@ -783,7 +801,9 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .pa-swipe-hint { text-align: center; font-size: .7rem; color: var(--bk-muted, #9fd6bf); margin-top: 6px; }
 /* Top-end corner of a bracket card: matchup play-chance % or a locked-in ✓.
    Sits at the inline-end of the date row → top-left in RTL, top-right in LTR. */
+.bk-when-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .bk-when-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-star { font-size: .6rem; line-height: 1; flex-shrink: 0; }
 .bk-prob {
   flex-shrink: 0; font-size: .56rem; font-weight: 800; color: #cdd9ff;
   background: rgba(70,111,208,0.28); border: 1px solid rgba(120,150,230,0.45);

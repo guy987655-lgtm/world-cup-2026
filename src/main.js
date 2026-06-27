@@ -76,6 +76,12 @@ const STR = {
     collapseAll: 'סגור הכל',
     scrollTop: 'גלול למעלה',
     likelyScores: 'תוצאות סבירות',
+    marketAdj: 'מבוסס על יחסי השוק',
+    stakeTitle: 'מה על הכף',
+    stakeThrough: 'כבר העפילה', stakeDrawEnough: 'תיקו (או ניצחון) מבטיח העפלה',
+    stakeWinThrough: 'ניצחון מבטיח העפלה', stakeMustWin: 'חייבת לנצח כדי לשמור סיכוי',
+    stakeFighting: 'נלחמת על העפלה — תלוי בתוצאות', stakeOut: 'ללא סיכוי למקום 1–2',
+    stakeThirdNote: 'החישוב למקומות 1–2 בלבד; העפלה כמקום שלישי אפשרית בנפרד',
     actualResult: 'בפועל',
     predAccTitle: 'דיוק התחזיות',
     predAccDesc: 'מתוך המשחקים שהסתיימו — כמה פעמים התוצאה בפועל תאמה לכל תחזית',
@@ -83,7 +89,7 @@ const STR = {
     predAccTotal: n => `סה״כ משחקים שהסתיימו: ${n}`,
     predAccNone: 'עדיין אין משחקים שהסתיימו עם נבחרות ידועות',
     commonResTitle: 'התוצאות הנפוצות', commonResDesc: 'פילוח לפי תוצאה (ללא תלות בנבחרת)',
-    restRow: 'כל השאר', swipeHint: 'החליקו שמאלה לפילוח התוצאות →',
+    restRow: 'כל השאר', swipeHint: 'החליקו שמאלה למידע נוסף →',
     playChance: 'הסיכוי שהמשחק הזה ישוחק', matchupSet: 'המשחק נקבע',
     playoffBtn: 'אזור הפלייאוף', playoffTitle: 'אזור הפלייאוף',
     backToSchedule: 'חזרה לשלב הבתים',
@@ -139,6 +145,12 @@ const STR = {
     collapseAll: 'Collapse all',
     scrollTop: 'Scroll to top',
     likelyScores: 'Likely scorelines',
+    marketAdj: 'Market-adjusted',
+    stakeTitle: 'What’s at stake',
+    stakeThrough: 'Already through', stakeDrawEnough: 'A draw or better secures top-2',
+    stakeWinThrough: 'A win secures top-2', stakeMustWin: 'Must win to stay alive',
+    stakeFighting: 'In contention — depends on results', stakeOut: 'Cannot reach top-2',
+    stakeThirdNote: 'Top-2 only — a best-third-place spot may still apply',
     actualResult: 'Actual',
     predAccTitle: 'Prediction accuracy',
     predAccDesc: 'Across finished matches — how often the actual result matched each prediction',
@@ -146,7 +158,7 @@ const STR = {
     predAccTotal: n => `Finished matches: ${n}`,
     predAccNone: 'No finished matches with known teams yet',
     commonResTitle: 'Most common results', commonResDesc: 'Breakdown by scoreline (regardless of team)',
-    restRow: 'All the rest', swipeHint: '← Swipe for the result breakdown',
+    restRow: 'All the rest', swipeHint: '← Swipe for more',
     playChance: 'Chance this matchup is played', matchupSet: 'Matchup set',
     playoffBtn: 'Playoff Zone', playoffTitle: 'Playoff Zone',
     backToSchedule: 'Back to group stage',
@@ -397,6 +409,7 @@ const SIM_BASE = 1.32;       // baseline expected goals per side
 const SIM_ALPHA = 3.5;       // how strongly the seed gap skews the scoreline (tuned to bookmaker lines)
 const SIM_LMIN = 0.35, SIM_LMAX = 3.4; // keep extreme mismatches realistic
 const LIVE_REMAIN = 0.4;     // fraction of scoring still to come in a live match
+const MARKET_W = 1;          // weight of market-derived λ vs seed λ (1 = trust market fully)
 const SEP = '␟';        // internal key separator (won't appear in names)
 
 function isRealTeam(s) { return SEED[s] != null || TEAM_EN[s] != null; }
@@ -410,11 +423,78 @@ function simPoisson(l) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *
 // Exact-scoreline probabilities from the same Poisson model: P(g1,g2) =
 // pmf(g1;λ1)·pmf(g2;λ2). Returns the n most likely {g1,g2,p}.
 function poissonPmf(k, l) { let f = 1; for (let i = 2; i <= k; i++) f *= i; return Math.exp(-l) * Math.pow(l, k) / f; }
-function topScorelines(t1, t2, n = 3) {
-  const [l1, l2] = simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
+function topScorelines(t1, t2, n = 3, lam) {
+  const [l1, l2] = lam || simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
   const out = [];
   for (let g1 = 0; g1 <= 6; g1++) for (let g2 = 0; g2 <= 6; g2++) out.push({ g1, g2, p: poissonPmf(g1, l1) * poissonPmf(g2, l2) });
   return out.sort((a, b) => b.p - a.p).slice(0, n);
+}
+
+// ── Market-calibrated goal expectations ─────────────────────────────────────
+// The betting market already prices in form / injuries / motivation / H2H, so
+// when ESPN supplies a genuine 3-way 1X2 we derive the Poisson λ's from it
+// instead of from the seeds. Falls back to the seed model when odds are missing.
+
+// 1X2 win/draw/loss probabilities of an independent Poisson(l1,l2) score grid.
+function poisson1x2(l1, l2, maxG = 10) {
+  const a = [], b = [];
+  for (let k = 0; k <= maxG; k++) { a[k] = poissonPmf(k, l1); b[k] = poissonPmf(k, l2); }
+  let pH = 0, pD = 0, pA = 0;
+  for (let i = 0; i <= maxG; i++) for (let j = 0; j <= maxG; j++) {
+    const p = a[i] * b[j];
+    if (i > j) pH += p; else if (i < j) pA += p; else pD += p;
+  }
+  return [pH, pD, pA];
+}
+// Decimal 1X2 odds → fair (vig-removed) probabilities. null unless all three are
+// real prices > 1 (a 2-way "to advance" market has no draw price → rejected).
+function oddsImplied(d1, dX, d2) {
+  const a = parseFloat(d1), b = parseFloat(dX), c = parseFloat(d2);
+  if (!(a > 1 && b > 1 && c > 1)) return null;
+  const s = 1 / a + 1 / b + 1 / c;
+  return [(1 / a) / s, (1 / b) / s, (1 / c) / s];
+}
+// Solve λ1,λ2 of an independent Poisson reproducing target (p1,pX,p2). Coordinate
+// descent: bisect supremacy δ=λ1−λ2 for the win/loss split, then total μ=λ1+λ2
+// for the draw rate; repeat. Seeded from the seed-based λ.
+function lambdasFromOdds(p1, pX, p2) {
+  const cap = l => Math.max(SIM_LMIN, Math.min(SIM_LMAX, l));
+  let mu = 2.6, delta = 0;
+  const split = () => [cap((mu + delta) / 2), cap((mu - delta) / 2)];
+  // Alternate two bisections (δ and μ are near-orthogonal: δ shifts the win/loss
+  // split, μ the draw rate). Ranges are independent of the current estimate so
+  // the clamp can't trap the search — this handles extreme favourites too.
+  for (let round = 0; round < 30; round++) {
+    let lo = -2 * SIM_LMAX, hi = 2 * SIM_LMAX;
+    for (let k = 0; k < 28; k++) {
+      delta = (lo + hi) / 2;
+      const [pH, , pA] = poisson1x2(...split());
+      if (pH - pA < p1 - p2) lo = delta; else hi = delta;
+    }
+    let mlo = 0.7, mhi = 2 * SIM_LMAX;
+    for (let k = 0; k < 28; k++) {
+      mu = (mlo + mhi) / 2;
+      const [, pD] = poisson1x2(...split());
+      if (pD > pX) mlo = mu; else mhi = mu;
+    }
+  }
+  const [l1, l2] = split();
+  // Reject degenerate fits that don't reproduce the market within tolerance
+  const [pH, pD, pA] = poisson1x2(l1, l2);
+  if (Math.abs(pH - p1) > 0.06 || Math.abs(pD - pX) > 0.06 || Math.abs(pA - p2) > 0.06) return null;
+  return [l1, l2];
+}
+// Goal expectations for a matchup: market-derived when ext carries a valid 3-way
+// 1X2 (oriented to t1=odds1, t2=odds2), else the seed model. { l1, l2, source }.
+function lambdasFor(t1, t2, ext) {
+  const seedL = simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
+  if (ext) {
+    const imp = oddsImplied(ext.odds1, ext.oddsX, ext.odds2);
+    const mkt = imp && lambdasFromOdds(imp[0], imp[1], imp[2]);
+    if (mkt) return { l1: MARKET_W * mkt[0] + (1 - MARKET_W) * seedL[0],
+                      l2: MARKET_W * mkt[1] + (1 - MARKET_W) * seedL[1], source: 'market' };
+  }
+  return { l1: seedL[0], l2: seedL[1], source: 'seed' };
 }
 function emptyRec() { return { w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }; }
 function applyPair(h, a, hg, ag) {
@@ -648,6 +728,9 @@ function buildMatchCard(k) {
   // distribution, decided ones show the likely-scoreline predictions.
   const clickable = true;
   const inWin = inWindow(x); // played inside the kids time window → green frame
+  // ⭐ when a top team plays inside the kid window — same criterion as the
+  // schedule zone's qualifies(), but evaluated on the slot's shown teams.
+  const qual = inWin && cur.some(t => TOP.includes(t));
   // Top-end corner: chance this exact matchup is the one played here; a green ✓
   // once the matchup is locked (certain). Live matches just show the live badge.
   let corner;
@@ -657,8 +740,8 @@ function buildMatchCard(k) {
     const p = matchupProbability(k.num);
     corner = p == null ? '' : `<span class="bk-prob" title="${T('playChance')}">${p < 0.005 ? '<1%' : Math.round(p * 100) + '%'}</span>`;
   }
-  return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}${inWin ? ' bk-window' : ''}" data-num="${k.num}">
-    <div class="bk-when"><span class="bk-when-txt">${when}</span>${corner}</div>
+  return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}${inWin ? ' bk-window' : ''}${qual ? ' bk-qual' : ''}" data-num="${k.num}">
+    <div class="bk-when"><span class="bk-when-left">${qual ? '<span class="bk-star">⭐</span>' : ''}<span class="bk-when-txt">${when}</span></span>${corner}</div>
     ${row(m1, s1, k.side1)}
     ${row(m2, s2, k.side2)}
   </div>`;
@@ -817,9 +900,15 @@ function openProbModal(num) {
   document.getElementById('probModalTitle').textContent = tStage(k.group);
   document.getElementById('probModalSlot').textContent = `${m1.label}${T('probVs')}${m2.label}`;
   const { top, curKey } = scenarioList(num, data);
+  // Decided matchup → no scenarios to show: hide the "possible matchups" label
+  // and the scenario list entirely, leaving just the scoreline predictions below.
+  const decided = k.finalized || !top.length;
+  const scenLabel = document.getElementById('probScenLabel');
+  if (scenLabel) scenLabel.hidden = decided;
   const body = document.getElementById('probModalBody');
-  if (k.finalized || !top.length) {
-    body.innerHTML = `<div class="prob-empty">${T('probDecided')}</div>`;
+  body.hidden = decided;
+  if (decided) {
+    body.innerHTML = '';
   } else {
     const pa = PLAYOFF.pairA, pb = PLAYOFF.pairB;
     const pairMode = pa && pb && pa !== pb;
@@ -845,11 +934,13 @@ function openProbModal(num) {
   const scoresEl = document.getElementById('probModalScores');
   if (scoresEl) {
     if (cur && isRealTeam(cur[0]) && isRealTeam(cur[1])) {
-      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn()}</div><div class="sl-list">${scorelineRows(cur[0], cur[1], played)}</div>`;
+      const lf = lambdasFor(cur[0], cur[1], k.m && k.m.ext);
+      const badge = lf.source === 'market' ? ` <span class="sl-mkt">${T('marketAdj')}</span>` : '';
+      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn()}${badge}</div><div class="sl-list">${scorelineRows(cur[0], cur[1], played, lf)}</div>`;
       scoresEl.hidden = false;
     } else { scoresEl.hidden = true; scoresEl.innerHTML = ''; }
   }
-  document.getElementById('probModalFoot').textContent = k.finalized ? '' : T('probCurrentHint');
+  document.getElementById('probModalFoot').textContent = decided ? '' : T('probCurrentHint');
   document.getElementById('probModal').hidden = false;
 }
 
@@ -1300,14 +1391,15 @@ function matchRealTeams(m) {
 // Rows of the 3 most likely pre-match exact scorelines (digits sit next to each
 // team). If `actual` ("g1-g2", in t1-t2 order) is given, the matching row is
 // flagged; if the actual result wasn't in the top 3 it's appended as a 4th row.
-function scorelineRows(t1, t2, actual) {
-  const top = topScorelines(t1, t2, 3);
+function scorelineRows(t1, t2, actual, lf) {
+  lf = lf || lambdasFor(t1, t2, null); // seed model when the caller has no odds context
+  const lam = [lf.l1, lf.l2];
+  const top = topScorelines(t1, t2, 3, lam);
   let act = null;
   if (actual) {
     const [a1, a2] = actual.split('-').map(s => parseInt(s.trim(), 10));
     if (Number.isInteger(a1) && Number.isInteger(a2)) {
-      const [l1, l2] = simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
-      act = { g1: a1, g2: a2, p: poissonPmf(a1, l1) * poissonPmf(a2, l2) };
+      act = { g1: a1, g2: a2, p: poissonPmf(a1, lam[0]) * poissonPmf(a2, lam[1]) };
     }
   }
   const same = s => act && s.g1 === act.g1 && s.g2 === act.g2;
@@ -1361,6 +1453,75 @@ function statsBtn() {
   return `<button type="button" class="sl-stats-btn" title="${T('predAccTitle')}" aria-label="${T('predAccTitle')}"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="1" y="2.5" width="3.4" height="11" rx="1"/><rect x="6.3" y="6" width="3.4" height="7.5" rx="1"/><rect x="11.6" y="9.5" width="3.4" height="4" rx="1"/></svg></button>`;
 }
 
+// "What's at stake" for a not-yet-played group match: enumerate the W/D/L
+// outcomes of the group's remaining matches (decisive final round → ≤9 combos)
+// and report, per team in THIS match, what its own result secures for a top-2
+// finish. Pure points level — ties at the 1–2/3 boundary are treated as
+// GD-dependent (never over-claimed). Best-third-place advancement is cross-group
+// and intentionally NOT computed (see the UI note). Returns { t1,t2,s1,s2 } | null.
+function qualScenario(m, MATCHES) {
+  if (isKnockoutRow(m) || m.score || m.live) return null;
+  const gms = MATCHES.filter(x => x.group === m.group);
+  const remaining = [];
+  gms.forEach((x, i) => { if (!x.score && !x.live) remaining.push(i); });
+  const thisIdx = gms.indexOf(m);
+  if (remaining.length === 0 || remaining.length > 2 || !remaining.includes(thisIdx)) return null;
+  const teamSet = new Set();
+  gms.forEach(x => x.match.split(' - ').forEach(s => teamSet.add(s.trim())));
+  if (teamSet.size !== 4) return null;
+  const [t1, t2] = m.match.split(' - ').map(s => s.trim());
+  const pairOf = i => gms[i].match.split(' - ').map(s => s.trim());
+  // base points from already-played matches
+  const base = {}; teamSet.forEach(t => base[t] = 0);
+  gms.forEach(x => {
+    if (!x.score) return;
+    const [h, a] = x.match.split(' - ').map(s => s.trim());
+    const [hg, ag] = x.score.split('-').map(s => parseInt(s.trim(), 10));
+    if (hg > ag) base[h] += 3; else if (ag > hg) base[a] += 3; else { base[h]++; base[a]++; }
+  });
+  // all W/D/L combinations across the remaining matches
+  const combos = [];
+  (function rec(i, acc) {
+    if (i === remaining.length) { combos.push(acc.slice()); return; }
+    for (const o of ['H', 'D', 'A']) { acc.push(o); rec(i + 1, acc); acc.pop(); }
+  })(0, []);
+  const finalPts = combo => {
+    const pts = { ...base };
+    remaining.forEach((idx, k) => {
+      const [h, a] = pairOf(idx);
+      if (combo[k] === 'H') pts[h] += 3; else if (combo[k] === 'A') pts[a] += 3; else { pts[h]++; pts[a]++; }
+    });
+    return pts;
+  };
+  const worstTop2 = (pts, T) => Object.keys(pts).filter(x => x !== T && pts[x] >= pts[T]).length <= 1;
+  const bestTop2  = (pts, T) => Object.keys(pts).filter(x => x !== T && pts[x] >  pts[T]).length <= 1;
+  const resultForTeam = (combo, T) => {
+    const o = combo[remaining.indexOf(thisIdx)];
+    if (o === 'D') return 'D';
+    return (T === t1) === (o === 'H') ? 'W' : 'L'; // t1 is this match's home side
+  };
+  const statusFor = T => {
+    const seen = { W: false, D: false, L: false };
+    const guar = { W: true, D: true, L: true };
+    const poss = { W: false, D: false, L: false };
+    combos.forEach(c => {
+      const r = resultForTeam(c, T), pts = finalPts(c);
+      seen[r] = true;
+      if (!worstTop2(pts, T)) guar[r] = false;
+      if (bestTop2(pts, T)) poss[r] = true;
+    });
+    const g = r => seen[r] && guar[r], p = r => seen[r] && poss[r];
+    if (g('W') && g('D') && g('L')) return 'through';
+    if (g('D')) return 'drawEnough';
+    if (g('W')) return 'winThrough';
+    if (!p('W') && !p('D') && !p('L')) return 'out';
+    if (p('W') && !p('D') && !p('L')) return 'mustWin';
+    return 'fighting';
+  };
+  return { t1, t2, s1: statusFor(t1), s2: statusFor(t2) };
+}
+const STAKE_TKEY = { through: 'stakeThrough', drawEnough: 'stakeDrawEnough', winThrough: 'stakeWinThrough', mustWin: 'stakeMustWin', fighting: 'stakeFighting', out: 'stakeOut' };
+
 function buildExtPanel(m, MATCHES) {
   const x = m.ext;
   const panel = document.createElement('div');
@@ -1371,18 +1532,30 @@ function buildExtPanel(m, MATCHES) {
   // for unplayed matches, and for finished ones too (with the actual flagged).
   const realTeams = matchRealTeams(m);
   const finished = !!m.score && !m.live;
-  const scoresHtml = (realTeams && !m.live)
-    ? `<div class="ext-sec-title sl-title">${T('likelyScores')} ${statsBtn()}</div><div class="sl-list">${scorelineRows(realTeams[0], realTeams[1], finished ? m.score : null)}</div>`
-    : '';
+  let scoresHtml = '';
+  if (realTeams && !m.live) {
+    const lf = lambdasFor(realTeams[0], realTeams[1], m.ext);
+    const badge = lf.source === 'market' ? ` <span class="sl-mkt">${T('marketAdj')}</span>` : '';
+    scoresHtml = `<div class="ext-sec-title sl-title">${T('likelyScores')} ${statsBtn()}${badge}</div><div class="sl-list">${scorelineRows(realTeams[0], realTeams[1], finished ? m.score : null, lf)}</div>`;
+  }
+
+  // "What's at stake" — qualification picture for a decisive, unplayed group match
+  const stake = qualScenario(m, MATCHES);
+  let stakeHtml = '';
+  if (stake) {
+    const row = (team, key) => `<div class="stake-row"><span class="stake-team">${flagOf(team)} ${tTeam(team)}</span><span class="stake-status stake-${key}">${T(STAKE_TKEY[key])}</span></div>`;
+    stakeHtml = `<div class="ext-sec-title">${T('stakeTitle')}</div><div class="ext-stake">${row(stake.t1, stake.s1)}${row(stake.t2, stake.s2)}<div class="stake-note">${T('stakeThirdNote')}</div></div>`;
+  }
 
   if (!x) {
-    if (!scoresHtml) return null;
-    panel.innerHTML = scoresHtml;
+    const html = stakeHtml + scoresHtml;
+    if (!html) return null;
+    panel.innerHTML = html;
     return panel;
   }
 
   if (x.state === 'pre') {
-    let html = '';
+    let html = stakeHtml;
     if (x.odds1 && x.oddsX && x.odds2) {
       html += `<div class="ext-sec-title">${T('oddsTitle')}</div>
         <div class="ext-odds">
@@ -2151,14 +2324,19 @@ async function init() {
     const carousel = body.querySelector('.pa-carousel');
     const slides = carousel.querySelectorAll('.pa-slide');
     const dots = body.querySelectorAll('.pa-dot');
+    const hint = body.querySelector('.pa-swipe-hint');
+    const last = slides.length - 1;
     const titles = [T('predAccTitle'), T('commonResTitle')];
     const subs = [T('predAccDesc'), T('commonResDesc')];
     const apply = idx => {
       titleEl.textContent = titles[idx];
       subEl.textContent = subs[idx];
       dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+      // The "swipe for more" hint only makes sense while there's a slide ahead;
+      // hidden (not removed) so the carousel height stays stable.
+      if (hint) hint.style.visibility = idx < last ? 'visible' : 'hidden';
     };
-    carousel.addEventListener('scroll', () => apply(Math.min(1, Math.round(Math.abs(carousel.scrollLeft) / (carousel.clientWidth || 1)))), { passive: true });
+    carousel.addEventListener('scroll', () => apply(Math.min(last, Math.round(Math.abs(carousel.scrollLeft) / (carousel.clientWidth || 1)))), { passive: true });
     dots.forEach((d, i) => d.addEventListener('click', () => slides[i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })));
     apply(0);
     predAccModal.hidden = false;
