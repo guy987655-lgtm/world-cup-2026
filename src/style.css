@@ -139,13 +139,15 @@ select {
   top: 8px; left: 8px; right: 8px;
   z-index: 250;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   direction: ltr;
   pointer-events: none;
-  transition: opacity .32s;
 }
 .landing-nav[hidden] { display: none; }
-.landing-nav.fade { opacity: 0; pointer-events: none; }
+/* The playoff button stays put (sticky, centered) the whole time you browse the
+   group stage; only the scroll-to-top button reveals at landing and fades away. */
+.landing-top-btn { position: absolute; right: 0; top: 0; transition: opacity .32s; }
+.landing-nav.fade .landing-top-btn { opacity: 0; pointer-events: none; }
 .landing-btn {
   pointer-events: auto;
   display: inline-flex;
@@ -794,6 +796,12 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .pa-reasons .reason-line:last-of-type { border-bottom: none; }
 .reason-nums { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); font-size: .8rem; text-align: center; color: var(--bk-muted, #9fd6bf); font-variant-numeric: tabular-nums; }
 .reason-nums b { color: #ffd24a; font-weight: 800; }
+/* Decision-support layer: news-derived lines + cited sources + a "live search" tag */
+.pa-reasons .reason-live { margin-top: 10px; font-size: .7rem; font-weight: 800; letter-spacing: .02em; color: #5fd19f; }
+.pa-reasons .reason-line.reason-ins { border-bottom: 1px solid rgba(95,209,159,0.18); }
+.reason-srcs { white-space: nowrap; }
+.reason-src { display: inline-block; margin-inline-start: 6px; font-size: .72rem; font-weight: 700; color: #8fc7ff; text-decoration: none; border-bottom: 1px dotted rgba(143,199,255,0.5); }
+.reason-src:hover { color: #bcdcff; }
 /* Carousel: slide 1 = accuracy, slide 2 = common-results breakdown */
 .pa-modal .modal-body { overflow: hidden; }
 .pa-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }

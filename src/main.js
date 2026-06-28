@@ -78,6 +78,7 @@ const STR = {
     likelyScores: 'תוצאות סבירות',
     marketAdj: 'מבוסס על יחסי השוק',
     reasonsTitle: 'מאחורי התחזית', reasonExpTotal: 'צפי שערים',
+    liveSearch: '🔎 מבוסס על חיפוש חי', reasonSource: 'מקור',
     rThrough: t => `🏆 ${t} כבר מובטחת העפלה — לרוב במצב כזה מסובבים את ההרכב ושומרים כוחות לשלב הבא.`,
     rMustWin: t => `🔥 ${t} חייבת לנצח כדי להישאר בחיים — צפויה להסתער קדימה ולקחת סיכונים.`,
     rOut: t => `🪦 ל${t} אין כבר על מה להילחם בטבלה — סימן שאלה גדול על המוטיבציה.`,
@@ -161,6 +162,7 @@ const STR = {
     likelyScores: 'Likely scorelines',
     marketAdj: 'Market-adjusted',
     reasonsTitle: 'Behind the prediction', reasonExpTotal: 'Expected goals',
+    liveSearch: '🔎 Live-search backed', reasonSource: 'source',
     rThrough: t => `🏆 ${t} have already qualified — sides often rotate and rest key players here.`,
     rMustWin: t => `🔥 ${t} must win to stay alive — expect them to throw everything forward.`,
     rOut: t => `🪦 ${t} have nothing left to play for in the table — motivation is a real question.`,
@@ -513,16 +515,28 @@ function lambdasFromOdds(p1, pX, p2) {
   return [l1, l2];
 }
 // Goal expectations for a matchup: market-derived when ext carries a valid 3-way
-// 1X2 (oriented to t1=odds1, t2=odds2), else the seed model. { l1, l2, source }.
-function lambdasFor(t1, t2, ext) {
+// 1X2 (oriented to t1=odds1, t2=odds2), else the seed model. When a decision-
+// support insight exists for `key`, a small clamped λ-nudge is applied on top
+// (re-clamped to [SIM_LMIN, SIM_LMAX]); the base market λ still dominates.
+// { l1, l2, source }.
+function lambdasFor(t1, t2, ext, key) {
   const seedL = simLambdas(ratingFromSeed(t1), ratingFromSeed(t2));
-  if (ext) {
-    const imp = oddsImplied(ext.odds1, ext.oddsX, ext.odds2);
-    const mkt = imp && lambdasFromOdds(imp[0], imp[1], imp[2]);
-    if (mkt) return { l1: MARKET_W * mkt[0] + (1 - MARKET_W) * seedL[0],
-                      l2: MARKET_W * mkt[1] + (1 - MARKET_W) * seedL[1], source: 'market' };
+  let l1, l2, source;
+  const imp = ext && oddsImplied(ext.odds1, ext.oddsX, ext.odds2);
+  const mkt = imp && lambdasFromOdds(imp[0], imp[1], imp[2]);
+  if (mkt) { l1 = MARKET_W * mkt[0] + (1 - MARKET_W) * seedL[0]; l2 = MARKET_W * mkt[1] + (1 - MARKET_W) * seedL[1]; source = 'market'; }
+  else { l1 = seedL[0]; l2 = seedL[1]; source = 'seed'; }
+  // Apply the insight nudge, aligning its t1/t2 (match home/away order) to the
+  // teams passed here (the row order may flip relative to the match string).
+  const ins = key && INSIGHTS[key];
+  if (ins && ins.nudge) {
+    const home = key.slice(key.indexOf('@') + 1).split(' - ')[0].trim();
+    const n1 = t1 === home ? ins.nudge.t1 : ins.nudge.t2;
+    const n2 = t1 === home ? ins.nudge.t2 : ins.nudge.t1;
+    const cap = l => Math.max(SIM_LMIN, Math.min(SIM_LMAX, l));
+    l1 = cap(l1 * (Number(n1) || 1)); l2 = cap(l2 * (Number(n2) || 1));
   }
-  return { l1: seedL[0], l2: seedL[1], source: 'seed' };
+  return { l1, l2, source };
 }
 function emptyRec() { return { w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }; }
 function applyPair(h, a, hg, ag) {
@@ -701,6 +715,9 @@ function matchupProbability(num) {
 // Cached probability run + the active filters (single-team highlight and a pair "do they meet")
 const PLAYOFF = { data: null, filter: '', pairA: '', pairB: '', zoom: 1, scenarioMode: 'likely' };
 let CURRENT_MATCHES = []; // latest match list, for the prediction-accuracy popup
+// Decision-support layer: precomputed context notes + tiny λ-nudges + sources,
+// keyed by "<date>@<match>" (best-effort fetch in loadData; may be empty).
+let INSIGHTS = {};
 
 // Top-to-bottom order within each round so the connector lines pair up correctly
 const BK_ROUNDS = ['32 הגדולות', 'שמינית גמר', 'רבע גמר', 'חצי גמר', 'גמר'];
@@ -962,7 +979,7 @@ function openProbModal(num) {
   const scoresEl = document.getElementById('probModalScores');
   if (scoresEl) {
     if (cur && isRealTeam(cur[0]) && isRealTeam(cur[1])) {
-      const lf = lambdasFor(cur[0], cur[1], k.m && k.m.ext);
+      const lf = lambdasFor(cur[0], cur[1], k.m && k.m.ext, k.m && (k.m.date + '@' + k.m.match));
       const badge = lf.source === 'market' ? ` <span class="sl-mkt">${T('marketAdj')}</span>` : '';
       scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn(cur[0], cur[1], lf, k.m)}${badge}</div><div class="sl-list">${scorelineRows(cur[0], cur[1], played, lf)}</div>`;
       scoresEl.hidden = false;
@@ -1539,9 +1556,23 @@ function reasonsSlide(ds) {
     else if (l1 + l2 < 2.3) reasons.push(T('rLowScoring'));
   }
   if (reasons.length < 2) reasons.push(T('rStrength', tTeam(fav)));
-  const linesHtml = reasons.slice(0, 4).map(r => `<div class="reason-line">${r}</div>`).join('');
+  // 5) Decision-support layer: news-derived context lines with cited sources.
+  // These are the only lines backed by a live web search, so they're tagged and
+  // shown after a couple of local reasons (kept scannable, ~5 lines total).
+  const ins = ds.mkey ? INSIGHTS[decodeURIComponent(ds.mkey)] : null;
+  const insSignals = (ins && Array.isArray(ins.signals) ? ins.signals : []).slice(0, 3);
+  const insLines = insSignals.map(s => {
+    const txt = (lang === 'he' ? s.text.he : s.text.en) || s.text.he || s.text.en || '';
+    if (!txt) return '';
+    const src = (s.sources || []).slice(0, 2).map((x, i) =>
+      `<a class="reason-src" href="${x.url}" target="_blank" rel="noopener" title="${String(x.title || '').replace(/"/g, '&quot;')}">${T('reasonSource')}${s.sources.length > 1 ? ' ' + (i + 1) : ''}</a>`).join('');
+    return `<div class="reason-line reason-ins">🔎 ${txt}${src ? ` <span class="reason-srcs">${src}</span>` : ''}</div>`;
+  }).filter(Boolean).join('');
+  const localCap = insLines ? 2 : 4;
+  const localHtml = reasons.slice(0, localCap).map(r => `<div class="reason-line">${r}</div>`).join('');
+  const insBlock = insLines ? `<div class="reason-live">${T('liveSearch')}</div>${insLines}` : '';
   const nums = `${tTeam(fav)} <b>${pct(favIs1 ? pH : pA)}%</b> · ${T('draw')} <b>${pct(pD)}%</b> · ${tTeam(dog)} <b>${pct(favIs1 ? pA : pH)}%</b> · ${T('reasonExpTotal')} <b>${(l1 + l2).toFixed(1)}</b>`;
-  const html = `<div class="pa-slide pa-reasons">${linesHtml}<div class="reason-nums">${nums}</div></div>`;
+  const html = `<div class="pa-slide pa-reasons">${localHtml}${insBlock}<div class="reason-nums">${nums}</div></div>`;
   return { html, title: T('reasonsTitle'), sub: `${tTeam(t1)}${T('probVs')}${tTeam(t2)}` };
 }
 
@@ -1626,7 +1657,7 @@ function buildExtPanel(m, MATCHES) {
   const finished = !!m.score && !m.live;
   let scoresHtml = '';
   if (realTeams && !m.live) {
-    const lf = lambdasFor(realTeams[0], realTeams[1], m.ext);
+    const lf = lambdasFor(realTeams[0], realTeams[1], m.ext, m.date + '@' + m.match);
     const badge = lf.source === 'market' ? ` <span class="sl-mkt">${T('marketAdj')}</span>` : '';
     scoresHtml = `<div class="ext-sec-title sl-title">${T('likelyScores')} ${statsBtn(realTeams[0], realTeams[1], lf, m)}${badge}</div><div class="sl-list">${scorelineRows(realTeams[0], realTeams[1], finished ? m.score : null, lf)}</div>`;
   }
@@ -1714,6 +1745,13 @@ async function loadData() {
     SCORES_AT = Date.now();
   } catch (e) {
     console.warn('Live scores unavailable:', e);
+  }
+  // Decision-support insights are best-effort too — schedule must load if absent
+  try {
+    const ir = await fetch('/data/insights.json?t=' + Date.now());
+    if (ir.ok) INSIGHTS = await ir.json();
+  } catch (e) {
+    console.warn('Insights unavailable:', e);
   }
   return matches;
 }
@@ -2635,12 +2673,13 @@ async function init() {
   const landingNav = document.getElementById('landingNav');
   const FIVE_CM = 189; // 5cm ≈ 189 CSS px
   let landingY = 0, landingDismissed = false;
+  // Fades only the scroll-to-top button and restores the corner FABs; the playoff
+  // button stays put so it's always reachable while browsing the group stage.
   function dismissLanding() {
     if (!landingNav || landingDismissed) return;
     landingDismissed = true;
     landingNav.classList.add('fade');
     document.body.classList.remove('landing-top');
-    setTimeout(() => { landingNav.hidden = true; }, 340);
   }
   function onLandingScroll() {
     if (landingDismissed) return;
