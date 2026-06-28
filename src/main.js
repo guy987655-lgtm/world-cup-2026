@@ -77,6 +77,20 @@ const STR = {
     scrollTop: 'גלול למעלה',
     likelyScores: 'תוצאות סבירות',
     marketAdj: 'מבוסס על יחסי השוק',
+    reasonsTitle: 'מאחורי התחזית', reasonExpTotal: 'צפי שערים',
+    rThrough: t => `🏆 ${t} כבר מובטחת העפלה — לרוב במצב כזה מסובבים את ההרכב ושומרים כוחות לשלב הבא.`,
+    rMustWin: t => `🔥 ${t} חייבת לנצח כדי להישאר בחיים — צפויה להסתער קדימה ולקחת סיכונים.`,
+    rOut: t => `🪦 ל${t} אין כבר על מה להילחם בטבלה — סימן שאלה גדול על המוטיבציה.`,
+    rFighting: t => `⚔️ עבור ${t} זה משחק גורלי על העפלה — תיתן את כל הנשמה.`,
+    rDrawOk: t => `🙂 ל${t} מספיק גם תיקו כדי לעלות — אולי תנהל את המשחק בזהירות.`,
+    rFormGood: (t, w) => `📈 ${t} מגיעה בכושר מצוין — ${w} ניצחונות במשחקים האחרונים.`,
+    rFormBad: t => `📉 ${t} בכושר ירוד לאחרונה ומתקשה להביא תוצאות.`,
+    rFavMarket: t => `💰 המהמרים רואים ב${t} פייבוריטית מובהקת.`,
+    rFavRatings: t => `💪 לפי הדירוג ${t} חזקה משמעותית ומכתיבה את התחזית.`,
+    rDogNoScore: t => `🛡️ ${t} מתקשה לכבוש בטורניר — סביר שתתקשה למצוא את הרשת.`,
+    rFavScores: t => `⚽ ${t} במכונת שערים — מבקיעה כמעט בכל משחק.`,
+    rLowScoring: '🔒 שתי הנבחרות נוטות למשחקים סגורים ודלי שערים.',
+    rStrength: t => `📊 הנתונים מצביעים על עליונות ברורה ל${t}.`,
     stakeTitle: 'מה על הכף',
     stakeThrough: 'כבר העפילה', stakeDrawEnough: 'תיקו (או ניצחון) מבטיח העפלה',
     stakeWinThrough: 'ניצחון מבטיח העפלה', stakeMustWin: 'חייבת לנצח כדי לשמור סיכוי',
@@ -146,6 +160,20 @@ const STR = {
     scrollTop: 'Scroll to top',
     likelyScores: 'Likely scorelines',
     marketAdj: 'Market-adjusted',
+    reasonsTitle: 'Behind the prediction', reasonExpTotal: 'Expected goals',
+    rThrough: t => `🏆 ${t} have already qualified — sides often rotate and rest key players here.`,
+    rMustWin: t => `🔥 ${t} must win to stay alive — expect them to throw everything forward.`,
+    rOut: t => `🪦 ${t} have nothing left to play for in the table — motivation is a real question.`,
+    rFighting: t => `⚔️ For ${t} it's a must-not-lose battle for a spot — they'll give it all.`,
+    rDrawOk: t => `🙂 A draw is enough for ${t} to go through — they may play it safe.`,
+    rFormGood: (t, w) => `📈 ${t} arrive in great form — ${w} wins in their recent games.`,
+    rFormBad: t => `📉 ${t} are out of form lately and struggling for results.`,
+    rFavMarket: t => `💰 Bookmakers make ${t} clear favourites.`,
+    rFavRatings: t => `💪 On ratings ${t} are clearly stronger and drive the prediction.`,
+    rDogNoScore: t => `🛡️ ${t} have struggled to score this tournament — goals may be hard to find.`,
+    rFavScores: t => `⚽ ${t} are a scoring machine — finding the net almost every game.`,
+    rLowScoring: '🔒 Both sides tend to play tight, low-scoring games.',
+    rStrength: t => `📊 The data points to a clear edge for ${t}.`,
     stakeTitle: 'What’s at stake',
     stakeThrough: 'Already through', stakeDrawEnough: 'A draw or better secures top-2',
     stakeWinThrough: 'A win secures top-2', stakeMustWin: 'Must win to stay alive',
@@ -936,7 +964,7 @@ function openProbModal(num) {
     if (cur && isRealTeam(cur[0]) && isRealTeam(cur[1])) {
       const lf = lambdasFor(cur[0], cur[1], k.m && k.m.ext);
       const badge = lf.source === 'market' ? ` <span class="sl-mkt">${T('marketAdj')}</span>` : '';
-      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn()}${badge}</div><div class="sl-list">${scorelineRows(cur[0], cur[1], played, lf)}</div>`;
+      scoresEl.innerHTML = `<div class="prob-scen-label sl-title">${T('likelyScores')} · ${tTeam(cur[0])}${T('probVs')}${tTeam(cur[1])} ${statsBtn(cur[0], cur[1], lf, k.m)}${badge}</div><div class="sl-list">${scorelineRows(cur[0], cur[1], played, lf)}</div>`;
       scoresEl.hidden = false;
     } else { scoresEl.hidden = true; scoresEl.innerHTML = ''; }
   }
@@ -1448,9 +1476,73 @@ function commonResults(MATCHES) {
   });
   return { arr: [...map.entries()].map(([score, n]) => ({ score, n })).sort((x, y) => y.n - x.n), total };
 }
-// Small "descending bars" icon button that opens the accuracy popup
-function statsBtn() {
-  return `<button type="button" class="sl-stats-btn" title="${T('predAccTitle')}" aria-label="${T('predAccTitle')}"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="1" y="2.5" width="3.4" height="11" rx="1"/><rect x="6.3" y="6" width="3.4" height="7.5" rx="1"/><rect x="11.6" y="9.5" width="3.4" height="4" rx="1"/></svg></button>`;
+// Small "descending bars" icon button that opens the accuracy popup. Carries the
+// match teams + fitted λ + a match key so the popup's first slide can build the
+// human "why" story (names URI-encoded — some contain a double-quote, e.g. ארה"ב).
+function statsBtn(t1, t2, lf, m) {
+  let d = '';
+  if (t1 && t2 && lf) {
+    d = ` data-t1="${encodeURIComponent(t1)}" data-t2="${encodeURIComponent(t2)}" data-l1="${lf.l1.toFixed(3)}" data-l2="${lf.l2.toFixed(3)}" data-src="${lf.source}"`;
+    if (m) d += ` data-mkey="${encodeURIComponent(m.date + '@' + m.match)}"`;
+  }
+  return `<button type="button" class="sl-stats-btn"${d} title="${T('predAccTitle')}" aria-label="${T('predAccTitle')}"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="1" y="2.5" width="3.4" height="11" rx="1"/><rect x="6.3" y="6" width="3.4" height="7.5" rx="1"/><rect x="11.6" y="9.5" width="3.4" height="4" rx="1"/></svg></button>`;
+}
+// A team's goals tally across its finished tournament matches.
+function teamTourStats(team, MATCHES) {
+  let gf = 0, ga = 0, n = 0;
+  (MATCHES || []).forEach(m => {
+    if (m.live || !m.score) return;
+    const tk = matchRealTeams(m); if (!tk) return;
+    const idx = tk.indexOf(team); if (idx < 0) return;
+    const [a, b] = m.score.split('-').map(s => parseInt(s.trim(), 10));
+    if (!Number.isInteger(a) || !Number.isInteger(b)) return;
+    gf += idx === 0 ? a : b; ga += idx === 0 ? b : a; n++;
+  });
+  return { n, avgFor: n ? gf / n : 0, avgAgainst: n ? ga / n : 0 };
+}
+// First carousel slide: the human, decision-relevant reasons behind the ranking
+// — qualification stakes, recent form, who the market favours, scoring trends —
+// every line backed by real data (no invented lineups), plus a small numbers row.
+function reasonsSlide(ds) {
+  const t1 = decodeURIComponent(ds.t1), t2 = decodeURIComponent(ds.t2);
+  const l1 = +ds.l1, l2 = +ds.l2, market = ds.src === 'market';
+  const [pH, pD, pA] = poisson1x2(l1, l2);
+  const pct = v => Math.round(v * 100);
+  const M = CURRENT_MATCHES;
+  const m = ds.mkey ? M.find(x => (x.date + '@' + x.match) === decodeURIComponent(ds.mkey)) : null;
+  const favIs1 = pH >= pA;
+  const fav = favIs1 ? t1 : t2, dog = favIs1 ? t2 : t1;
+  const reasons = [];
+  // 1) What's at stake — the most compelling, human driver (decisive group games)
+  const stake = m ? qualScenario(m, M) : null;
+  if (stake) {
+    const STAKE_R = { through: 'rThrough', mustWin: 'rMustWin', out: 'rOut', fighting: 'rFighting', drawEnough: 'rDrawOk' };
+    const sFor = nm => nm === stake.t1 ? stake.s1 : stake.s2;
+    [t1, t2].forEach(tm => { const k = STAKE_R[sFor(tm)]; if (k) reasons.push(T(k, tTeam(tm))); });
+  }
+  // 2) Recent form (ESPN, newest-first W/D/L string)
+  if (m && m.ext) {
+    const f = s => { const c = (s || '').toUpperCase(); return { w: (c.match(/W/g) || []).length, l: (c.match(/L/g) || []).length, n: c.length }; };
+    const ft = (team, fc) => fc.n >= 3 && fc.w >= 3 ? T('rFormGood', tTeam(team), fc.w)
+      : fc.n >= 3 && fc.w === 0 && fc.l >= 2 ? T('rFormBad', tTeam(team)) : null;
+    [[t1, f(m.ext.form1)], [t2, f(m.ext.form2)]].forEach(([tm, fc]) => { const l = ft(tm, fc); if (l && reasons.length < 4) reasons.push(l); });
+  }
+  // 3) Who the market / ratings favour
+  if (Math.max(pH, pA) >= 0.55 && reasons.length < 4) {
+    reasons.push(market ? T('rFavMarket', tTeam(fav)) : T('rFavRatings', tTeam(fav)));
+  }
+  // 4) Scoring trend from their actual tournament games
+  if (reasons.length < 4) {
+    const dgs = teamTourStats(dog, M), fgs = teamTourStats(fav, M);
+    if (dgs.n >= 2 && dgs.avgFor < 0.8) reasons.push(T('rDogNoScore', tTeam(dog)));
+    else if (fgs.n >= 2 && fgs.avgFor >= 2) reasons.push(T('rFavScores', tTeam(fav)));
+    else if (l1 + l2 < 2.3) reasons.push(T('rLowScoring'));
+  }
+  if (reasons.length < 2) reasons.push(T('rStrength', tTeam(fav)));
+  const linesHtml = reasons.slice(0, 4).map(r => `<div class="reason-line">${r}</div>`).join('');
+  const nums = `${tTeam(fav)} <b>${pct(favIs1 ? pH : pA)}%</b> · ${T('draw')} <b>${pct(pD)}%</b> · ${tTeam(dog)} <b>${pct(favIs1 ? pA : pH)}%</b> · ${T('reasonExpTotal')} <b>${(l1 + l2).toFixed(1)}</b>`;
+  const html = `<div class="pa-slide pa-reasons">${linesHtml}<div class="reason-nums">${nums}</div></div>`;
+  return { html, title: T('reasonsTitle'), sub: `${tTeam(t1)}${T('probVs')}${tTeam(t2)}` };
 }
 
 // "What's at stake" for a not-yet-played group match: enumerate the W/D/L
@@ -1536,7 +1628,7 @@ function buildExtPanel(m, MATCHES) {
   if (realTeams && !m.live) {
     const lf = lambdasFor(realTeams[0], realTeams[1], m.ext);
     const badge = lf.source === 'market' ? ` <span class="sl-mkt">${T('marketAdj')}</span>` : '';
-    scoresHtml = `<div class="ext-sec-title sl-title">${T('likelyScores')} ${statsBtn()}${badge}</div><div class="sl-list">${scorelineRows(realTeams[0], realTeams[1], finished ? m.score : null, lf)}</div>`;
+    scoresHtml = `<div class="ext-sec-title sl-title">${T('likelyScores')} ${statsBtn(realTeams[0], realTeams[1], lf, m)}${badge}</div><div class="sl-list">${scorelineRows(realTeams[0], realTeams[1], finished ? m.score : null, lf)}</div>`;
   }
 
   // "What's at stake" — qualification picture for a decisive, unplayed group match
@@ -1548,10 +1640,10 @@ function buildExtPanel(m, MATCHES) {
   }
 
   if (!x) {
-    const html = stakeHtml + scoresHtml;
-    if (!html) return null;
-    panel.innerHTML = html;
-    return panel;
+    panel.innerHTML = stakeHtml + scoresHtml;
+    // Group table — also when there's no live data, so the group is always visible
+    if (!isKnockoutRow(m)) panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
+    return panel.innerHTML ? panel : null;
   }
 
   if (x.state === 'pre') {
@@ -1572,9 +1664,10 @@ function buildExtPanel(m, MATCHES) {
       html += `</div>`;
     }
     html += scoresHtml;
-    if (!html) return null;
     panel.innerHTML = html;
-    return panel;
+    // Group table — also for upcoming group matches, so you can see the group
+    if (!isKnockoutRow(m)) panel.appendChild(buildStandingsTable(calcStandings(m.group, MATCHES), m.group));
+    return panel.innerHTML ? panel : null;
   }
 
   // live or finished — scorers first
@@ -2292,42 +2385,50 @@ async function init() {
       <span class="pa-val">${n} · ${pct}%</span>
     </div>`;
   };
-  function openPredAcc() {
+  function openPredAcc(btn) {
     const titleEl = document.getElementById('predAccTitle');
     const subEl = document.getElementById('predAccSub');
     const body = document.getElementById('predAccBody');
+    const slidesHtml = [], titles = [], subs = [];
+    // Slide 0 (match-specific) — why these scorelines were ranked, from the
+    // clicked button's fitted λ. Always first when the match context is present.
+    if (btn && btn.dataset && btn.dataset.t1) {
+      const r = reasonsSlide(btn.dataset);
+      slidesHtml.push(r.html); titles.push(r.title); subs.push(r.sub);
+    }
     const acc = predictionAccuracy(CURRENT_MATCHES);
-    if (!acc.total) {
+    if (acc.total) {
+      // Tournament-wide: how often each prediction rank matched the actual result
+      slidesHtml.push(`<div class="pa-slide">${
+        paRow(T('predAccP1'), acc.r1, acc.total) + paRow(T('predAccP2'), acc.r2, acc.total) +
+        paRow(T('predAccP3'), acc.r3, acc.total) + paRow(T('predAccOther'), acc.other, acc.total, true)
+      }<div class="pa-total">${T('predAccTotal', acc.total)}</div></div>`);
+      titles.push(T('predAccTitle')); subs.push(T('predAccDesc'));
+      // Most common actual scorelines (top 6 + all the rest)
+      const cr = commonResults(CURRENT_MATCHES);
+      const top6 = cr.arr.slice(0, 6);
+      const restN = cr.arr.slice(6).reduce((s, r) => s + r.n, 0);
+      slidesHtml.push(`<div class="pa-slide">${
+        top6.map(r => paRow(`<span class="pa-score" dir="ltr">${r.score.replace('-', '–')}</span>`, r.n, cr.total)).join('') +
+        paRow(T('restRow'), restN, cr.total, true)
+      }<div class="pa-total">${T('predAccTotal', cr.total)}</div></div>`);
+      titles.push(T('commonResTitle')); subs.push(T('commonResDesc'));
+    }
+    if (!slidesHtml.length) {
       titleEl.textContent = T('predAccTitle');
       subEl.textContent = '';
       body.innerHTML = `<div class="prob-empty">${T('predAccNone')}</div>`;
       predAccModal.hidden = false;
       return;
     }
-    // Slide 1 — how often each prediction rank matched the actual result
-    const slide1 = `<div class="pa-slide">${
-      paRow(T('predAccP1'), acc.r1, acc.total) + paRow(T('predAccP2'), acc.r2, acc.total) +
-      paRow(T('predAccP3'), acc.r3, acc.total) + paRow(T('predAccOther'), acc.other, acc.total, true)
-    }<div class="pa-total">${T('predAccTotal', acc.total)}</div></div>`;
-    // Slide 2 — most common actual scorelines (top 6 + all the rest)
-    const cr = commonResults(CURRENT_MATCHES);
-    const top6 = cr.arr.slice(0, 6);
-    const restN = cr.arr.slice(6).reduce((s, r) => s + r.n, 0);
-    const slide2 = `<div class="pa-slide">${
-      top6.map(r => paRow(`<span class="pa-score" dir="ltr">${r.score.replace('-', '–')}</span>`, r.n, cr.total)).join('') +
-      paRow(T('restRow'), restN, cr.total, true)
-    }<div class="pa-total">${T('predAccTotal', cr.total)}</div></div>`;
-
-    body.innerHTML = `<div class="pa-carousel">${slide1}${slide2}</div>
-      <div class="pa-dots"><span class="pa-dot"></span><span class="pa-dot"></span></div>
+    body.innerHTML = `<div class="pa-carousel">${slidesHtml.join('')}</div>
+      <div class="pa-dots">${slidesHtml.map(() => '<span class="pa-dot"></span>').join('')}</div>
       <div class="pa-swipe-hint">${T('swipeHint')}</div>`;
     const carousel = body.querySelector('.pa-carousel');
     const slides = carousel.querySelectorAll('.pa-slide');
     const dots = body.querySelectorAll('.pa-dot');
     const hint = body.querySelector('.pa-swipe-hint');
     const last = slides.length - 1;
-    const titles = [T('predAccTitle'), T('commonResTitle')];
-    const subs = [T('predAccDesc'), T('commonResDesc')];
     const apply = idx => {
       titleEl.textContent = titles[idx];
       subEl.textContent = subs[idx];
@@ -2342,7 +2443,7 @@ async function init() {
     predAccModal.hidden = false;
   }
   if (predAccModal) {
-    document.addEventListener('click', e => { if (e.target.closest('.sl-stats-btn')) { e.stopPropagation(); openPredAcc(); } });
+    document.addEventListener('click', e => { const b = e.target.closest('.sl-stats-btn'); if (b) { e.stopPropagation(); openPredAcc(b); } });
     document.getElementById('closePredAcc').addEventListener('click', () => { predAccModal.hidden = true; });
     predAccModal.addEventListener('click', e => { if (e.target === predAccModal) predAccModal.hidden = true; });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !predAccModal.hidden) predAccModal.hidden = true; });

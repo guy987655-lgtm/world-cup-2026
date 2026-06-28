@@ -789,6 +789,11 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .pa-val { flex-shrink: 0; min-width: 64px; text-align: left; font-weight: 800; color: #ffd24a; font-variant-numeric: tabular-nums; }
 .pa-row.pa-other .pa-val { color: #cdd9ff; }
 .pa-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); font-size: .8rem; font-weight: 700; color: var(--bk-muted, #9fd6bf); text-align: center; }
+/* "Behind the prediction" reasons slide — human story lines + a small numbers row */
+.pa-reasons .reason-line { font-size: .92rem; font-weight: 600; line-height: 1.5; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.pa-reasons .reason-line:last-of-type { border-bottom: none; }
+.reason-nums { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); font-size: .8rem; text-align: center; color: var(--bk-muted, #9fd6bf); font-variant-numeric: tabular-nums; }
+.reason-nums b { color: #ffd24a; font-weight: 800; }
 /* Carousel: slide 1 = accuracy, slide 2 = common-results breakdown */
 .pa-modal .modal-body { overflow: hidden; }
 .pa-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
