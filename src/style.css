@@ -400,7 +400,6 @@ body.playoff-mode .landing-nav { display: none !important; }
 .sc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sc-goals { color: #ffd24a; font-weight: 700; flex-shrink: 0; }
 .sc-me { background: rgba(255,210,74,0.10); border-radius: 8px; padding-inline: 6px; }
-.m-score-cell { flex-shrink: 0; min-width: 52px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .m-score {
   font-size: 1.2rem;
   font-weight: 800;
@@ -410,10 +409,6 @@ body.playoff-mode .landing-nav { display: none !important; }
   min-width: 52px;
   text-align: center;
 }
-/* Penalty-shootout tally under the regulation score (e.g. "פנדלים 4-3") */
-.m-pens { font-size: .64rem; font-weight: 700; color: #9fd6bf; letter-spacing: .3px; white-space: nowrap; }
-/* ✓ next to the team that advanced on penalties */
-.adv-mark { color: #5fd19f; font-weight: 900; margin: 0 3px; }
 .match.played { opacity: 1; border-right-color: #7f8c8d; }
 .legend { font-size: .75rem; color: #9fd6bf; text-align: center; margin-top: 8px; line-height: 1.8; }
 .note { font-size: .72rem; color: #ffd24a; text-align: center; margin: 14px 0; padding: 8px 12px; background: rgba(255,210,74,0.08); border-radius: 8px; }
@@ -838,6 +833,8 @@ body.playoff-mode .lang-toggle { z-index: 600; }
 .bk-sub { display: block; font-size: .56rem; color: #6f83b8; font-style: italic; }
 /* ✓ next to a team whose place in this slot is already secured (locked in) */
 .bk-secured { color: #5fd19f; font-weight: 900; font-size: .72rem; margin: 0 3px; vertical-align: middle; }
+/* Penalty score in parentheses next to a side's 120-minute score, e.g. "1 (4)" */
+.bk-pk { font-size: .82em; font-weight: 700; color: var(--bk-muted, #9fd6bf); }
 .bk-score { font-weight: 800; color: #ffd24a; flex-shrink: 0; min-width: 14px; text-align: center; }
 .bk-row.bk-win .bk-name { color: #fff; font-weight: 800; }
 .bk-row.bk-win .bk-score { color: #6be19a; }

@@ -781,13 +781,16 @@ function buildMatchCard(k) {
   // ✓ in the corner, so the per-team ✓ only marks a lone secured team (partial slot).
   const [lk1, lk2] = live ? [false, false] : slotLocks(k);
   const bothLocked = lk1 && lk2;
-  const row = (meta, score, side, locked) => {
+  // Penalty tally (side1-side2 order) shown in parentheses next to each side's
+  // 120-minute score, e.g. "1 (3)" / "1 (4)".
+  const pens = x.pens ? x.pens.split('-') : null;
+  const row = (meta, score, side, locked, pk) => {
     const flag = meta.flag ? `<span class="bk-flag">${meta.flag}</span>` : '<span class="bk-flag"></span>';
     const nameCls = meta.real ? '' : (meta.projected ? ' bk-ph bk-proj' : ' bk-ph');
     const check = (locked && !bothLocked) ? `<span class="bk-secured" title="${T('clinched')}">✓</span>` : '';
     const name = `<span class="bk-name${nameCls}">${meta.label}</span>${check}` +
       (meta.sub ? `<span class="bk-sub">${meta.sub}</span>` : '');
-    const sc = hasScore ? `<span class="bk-score">${score}</span>` : '';
+    const sc = hasScore ? `<span class="bk-score">${score}${pk != null ? ` <span class="bk-pk">(${pk})</span>` : ''}</span>` : '';
     return `<div class="bk-row${k.fixedWinner === side ? ' bk-win' : ''}">${flag}<span class="bk-nm">${name}</span>${sc}</div>`;
   };
   const conv = matchInTz(x);
@@ -809,8 +812,8 @@ function buildMatchCard(k) {
   else { const p = matchupProbability(k.num); corner = p == null ? '' : `<span class="bk-prob" title="${T('playChance')}">${p < 0.005 ? '<1%' : Math.round(p * 100) + '%'}</span>`; }
   return `<div class="bk-match${clickable ? ' bk-clickable' : ''}${live ? ' bk-live' : ''}${inWin ? ' bk-window' : ''}${qual ? ' bk-qual' : ''}" data-num="${k.num}">
     <div class="bk-when"><span class="bk-when-left">${qual ? '<span class="bk-star">⭐</span>' : ''}<span class="bk-when-txt">${when}</span></span>${corner}</div>
-    ${row(m1, s1, k.side1, lk1)}
-    ${row(m2, s2, k.side2, lk2)}
+    ${row(m1, s1, k.side1, lk1, pens ? pens[0] : null)}
+    ${row(m2, s2, k.side2, lk2, pens ? pens[1] : null)}
   </div>`;
 }
 
@@ -2129,9 +2132,7 @@ async function init() {
         // In RTL the first team sits on the right, so flip the digits to keep
         // each team's goals visually adjacent to its name
         const dispScore = lang === 'he' ? m.score.split('-').reverse().join('-') : m.score;
-        const dispPens = m.pens ? (lang === 'he' ? m.pens.split('-').reverse().join('-') : m.pens) : '';
-        const pensHtml = dispPens ? `<div class="m-pens" dir="ltr">(${T('penShootout')} ${dispPens})</div>` : '';
-        rightCol = `<div class="m-score-cell"><div class="m-score" dir="ltr">${dispScore}</div>${pensHtml}</div>`;
+        rightCol = `<div class="m-score" dir="ltr">${dispScore}</div>`;
       } else if (nt) {
         rightCol = `<div class="m-time tbd-t">${T('timeTBD')}</div>`;
       } else {
@@ -2155,13 +2156,6 @@ async function init() {
           teamsHtml = teamsHtml.slice(0, i) + rc(m.ext.reds1) + ' - ' + teamsHtml.slice(i + 3) + rc(m.ext.reds2);
         }
       }
-      // Penalty winner ✓ next to the team that advanced from the shootout
-      if (m.pensWin && played) {
-        const mark = `<span class="adv-mark" title="${T('advanced')}">✓</span>`;
-        const i = teamsHtml.indexOf(' - ');
-        if (i > -1) teamsHtml = m.pensWin === 1 ? teamsHtml.slice(0, i) + mark + teamsHtml.slice(i) : teamsHtml + mark;
-      }
-
       // Snapshot of who would fill the R32 placeholders if the group stage
       // ended right now (disappears once ESPN swaps in the real names)
       let projHtml = '';
