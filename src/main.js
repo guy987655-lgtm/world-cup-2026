@@ -1,5 +1,9 @@
 import { inject } from '@vercel/analytics';
-inject();
+
+// Initialize Vercel Web Analytics
+inject({
+  mode: import.meta.env.PROD ? 'production' : 'development'
+});
 
 const TOP = [
   "ספרד","צרפת","אנגליה","ארגנטינה","ברזיל","פורטוגל",
