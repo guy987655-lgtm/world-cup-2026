@@ -902,3 +902,26 @@ body.playoff-mode .lang-toggle { z-index: 600; }
   .pv-select, .pv-pair .pv-select { min-width: 0; }
   .pv-scen-count { order: 1; flex-basis: 100%; }
 }
+
+/* ─── Demo mode (?demo=1) ─────────────────────────────────────────────── */
+.demo-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #10261f;
+  background: #ffd24a;
+}
+html.demo body { padding-top: 36px; }
+html.demo .lang-toggle { top: 32px; }
+html.demo .today-btn.pinned { top: 32px; }
+html.demo .playoff-view { top: 22px; }
+html.demo .landing-nav { top: 30px; }
+html.demo .refresh-fab { top: 32px; }
+html.demo .collapse-fab { top: 70px; }

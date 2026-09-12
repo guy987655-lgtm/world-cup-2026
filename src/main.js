@@ -1,5 +1,29 @@
 import { inject } from '@vercel/analytics';
-inject();
+
+// ─── Demo mode (?demo=1) ────────────────────────────────────────────────
+// A frozen mid-tournament snapshot (public/demo/fixture.json) instead of live ESPN data:
+// fixed "today", no background polling, no analytics, and no writes to saved preferences.
+// ?lang=he|en picks the language, ?view=bracket opens the playoff view. Sticky per tab; ?demo=0 exits.
+const DEMO_PARAMS = new URLSearchParams(location.search);
+const DEMO = (() => {
+  try {
+    const flag = DEMO_PARAMS.get('demo');
+    if (flag === '1') sessionStorage.setItem('demo', '1');
+    if (flag === '0') sessionStorage.removeItem('demo');
+    return sessionStorage.getItem('demo') === '1';
+  } catch (e) { return false; }
+})();
+let DEMO_FIXTURE = null;
+async function loadDemoFixture() {
+  if (!DEMO_FIXTURE) {
+    const res = await fetch('/demo/fixture.json');
+    if (!res.ok) throw new Error('Demo fixture error: ' + res.status);
+    DEMO_FIXTURE = await res.json();
+  }
+  return DEMO_FIXTURE;
+}
+
+if (!DEMO) inject();
 
 const TOP = [
   "ספרד","צרפת","אנגליה","ארגנטינה","ברזיל","פורטוגל",
@@ -7,8 +31,9 @@ const TOP = [
 ];
 
 // ─── i18n ───────────────────────────────────────────────────────────────
-let lang = localStorage.getItem('lang') || 'he';
-let currentTz = localStorage.getItem('tz') || 'il';
+const DEMO_LANG = DEMO && ['he', 'en'].includes(DEMO_PARAMS.get('lang')) ? DEMO_PARAMS.get('lang') : null;
+let lang = DEMO_LANG || localStorage.getItem('lang') || 'he';
+let currentTz = DEMO ? (lang === 'en' ? 'uk' : 'il') : (localStorage.getItem('tz') || 'il');
 
 const TIMEZONES = [
   { id: 'il', tz: 'Asia/Jerusalem',   he: 'שעון ישראל',    en: 'IL Timezone' },
@@ -1128,7 +1153,7 @@ function keyToOrd(key) {
   return m * 100 + parseInt(dayStr, 10);
 }
 function todayOrd() {
-  const d = new Date();
+  const d = DEMO_FIXTURE ? new Date(DEMO_FIXTURE.demoNow) : new Date();
   return (d.getMonth() + 1) * 100 + d.getDate();
 }
 function findTodayHeader() {
@@ -1301,9 +1326,14 @@ function amToDec(s) {
 }
 
 async function loadScores() {
-  const res = await fetch(SCORES_URL);
-  if (!res.ok) throw new Error('Scores network error: ' + res.status);
-  const data = await res.json();
+  let data;
+  if (DEMO) {
+    data = await loadDemoFixture();
+  } else {
+    const res = await fetch(SCORES_URL);
+    if (!res.ok) throw new Error('Scores network error: ' + res.status);
+    data = await res.json();
+  }
   return (data.events || []).map(e => {
     const comp = e.competitions[0];
     const home = comp.competitors.find(c => c.homeAway === 'home');
@@ -1788,17 +1818,29 @@ async function loadData() {
     console.warn('Live scores unavailable:', e);
   }
   // Decision-support insights are best-effort too — schedule must load if absent
-  try {
-    const ir = await fetch('/data/insights.json?t=' + Date.now());
-    if (ir.ok) INSIGHTS = await ir.json();
-  } catch (e) {
-    console.warn('Insights unavailable:', e);
+  if (!DEMO) {
+    try {
+      const ir = await fetch('/data/insights.json?t=' + Date.now());
+      if (ir.ok) INSIGHTS = await ir.json();
+    } catch (e) {
+      console.warn('Insights unavailable:', e);
+    }
   }
   return matches;
 }
 
+function showDemoBanner() {
+  document.documentElement.classList.add('demo');
+  const banner = document.createElement('div');
+  banner.className = 'demo-banner';
+  banner.setAttribute('data-demo-banner', '');
+  banner.textContent = lang === 'he' ? 'מצב הדגמה — נתונים לדוגמה' : 'Demo mode — sample data';
+  document.body.prepend(banner);
+}
+
 
 async function init() {
+  if (DEMO) showDemoBanner();
   let MATCHES = await loadData();
 
   const teamSel = document.getElementById('filterTeam');
@@ -2580,11 +2622,11 @@ async function init() {
   markRefreshed();
   // Re-fetch fresh results whenever the user returns to the tab/app
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') doRefresh();
+    if (document.visibilityState === 'visible' && !DEMO) doRefresh();
   });
   // Silent background poll — keeps live scores ticking without touching the button
   setInterval(async () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible' || DEMO) return;
     try {
       const data = await loadData();
       if (Array.isArray(data) && data.length > 0) {
@@ -2684,7 +2726,7 @@ async function init() {
     const opt = e.target.closest('.tz-option');
     if (!opt) return;
     currentTz = opt.dataset.tz;
-    localStorage.setItem('tz', currentTz);
+    if (!DEMO) localStorage.setItem('tz', currentTz);
     tzModal.hidden = true;
     applyStaticI18n();
     render();
@@ -2695,9 +2737,14 @@ async function init() {
   const langBtn = document.getElementById('langToggle');
   langBtn.addEventListener('click', () => {
     lang = lang === 'he' ? 'en' : 'he';
-    localStorage.setItem('lang', lang);
     currentTz = lang === 'en' ? 'uk' : 'il';
-    localStorage.setItem('tz', currentTz);
+    if (!DEMO) {
+      localStorage.setItem('lang', lang);
+      localStorage.setItem('tz', currentTz);
+    } else {
+      const banner = document.querySelector('[data-demo-banner]');
+      if (banner) banner.textContent = lang === 'he' ? 'מצב הדגמה — נתונים לדוגמה' : 'Demo mode — sample data';
+    }
     applyStaticI18n();
     rebuildDropdowns();
     render();
@@ -2738,6 +2785,13 @@ async function init() {
     if (t) window.scrollTo({ top: Math.max(0, window.scrollY + t.getBoundingClientRect().top - 58), behavior: 'instant' });
     landingY = window.scrollY;
     if (landingNav) { landingNav.hidden = false; landingNav.classList.remove('fade'); document.body.classList.add('landing-top'); }
+    if (DEMO) {
+      if (DEMO_PARAMS.get('view') === 'bracket') { dismissLanding(); openPlayoff(); }
+      // Signals for the portfolio: the screenshot pipeline waits for the attribute,
+      // an embedding frame waits for the message (it carries no data).
+      document.documentElement.setAttribute('data-exhibit-ready', '');
+      if (window.parent !== window) window.parent.postMessage({ type: 'exhibit-ready', slug: 'worldcup' }, '*');
+    }
   }, 0);
 }
 

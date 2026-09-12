@@ -1,0 +1,135 @@
+{
+  "slug": "worldcup",
+  "title": {
+    "he": "מונדיאל 2026",
+    "en": "World Cup 2026"
+  },
+  "headline": {
+    "he": "לוח המשחקים של המונדיאל בעברית ובאנגלית, עם תוצאות חיות, יחסי הימורים, טבלאות בתים ועץ פלייאוף",
+    "en": "The World Cup schedule in Hebrew and English, with live scores, betting odds, group tables and a playoff bracket"
+  },
+  "status": "paused",
+  "depth": "full",
+  "version": "1.1.0",
+  "updatedAt": "2026-09-12T00:00:00+03:00",
+  "stack": [
+    "Vite",
+    "JavaScript",
+    "ESPN public API",
+    "Vercel Analytics"
+  ],
+  "facts": [
+    {
+      "label": {
+        "he": "נבנה",
+        "en": "Built"
+      },
+      "value": {
+        "he": "יוני 2026",
+        "en": "June 2026"
+      }
+    },
+    {
+      "label": {
+        "he": "משחקים בלוח",
+        "en": "Matches on the schedule"
+      },
+      "value": {
+        "he": "104",
+        "en": "104"
+      }
+    },
+    {
+      "label": {
+        "he": "שפות",
+        "en": "Languages"
+      },
+      "value": {
+        "he": "עברית ואנגלית",
+        "en": "Hebrew and English"
+      }
+    }
+  ],
+  "highlights": [
+    {
+      "title": {
+        "he": "סינון שמתאים לבית עם ילדים",
+        "en": "A filter built for a family schedule"
+      },
+      "body": {
+        "he": "מתג אחד משאיר רק משחקים של נבחרות טופ שנופלים בחלון שעות שמתאים לילדים, לפי אזור הזמן שנבחר.",
+        "en": "One switch keeps only top-team matches that fall inside a kid-friendly time window, in the chosen time zone."
+      }
+    },
+    {
+      "title": {
+        "he": "נתונים חיים שלא מפילים את הלוח",
+        "en": "Live data that can't take the schedule down"
+      },
+      "body": {
+        "he": "הלוח נטען מקובץ סטטי, והתוצאות מ-ESPN נמזגות לתוכו כשכבה נוספת. אם ESPN לא עונה, הלוח עדיין עולה.",
+        "en": "The schedule loads from a static file and ESPN scores are merged on top. If ESPN is down, the schedule still loads."
+      }
+    },
+    {
+      "title": {
+        "he": "עץ פלייאוף שמתמלא לבד",
+        "en": "A bracket that fills itself in"
+      },
+      "body": {
+        "he": "משבצות כמו \"המנצחת במשחק 73\" מתחלפות בשמות הנבחרות ברגע שהתוצאה נקבעת, כולל הכרעה בפנדלים.",
+        "en": "Slots like \"winner of match 73\" turn into team names as soon as a result is in, penalty shootouts included."
+      }
+    }
+  ],
+  "demoMode": {
+    "supported": true,
+    "entryUrl": "/?demo=1",
+    "note": {
+      "he": "תמונת מצב קפואה מהיום האחרון של שלב הבתים",
+      "en": "A frozen snapshot from the last day of the group stage"
+    }
+  },
+  "locales": [
+    "he",
+    "en"
+  ],
+  "tourRoutes": [
+    {
+      "id": "schedule-he",
+      "path": "/?demo=1&lang=he",
+      "caption": {
+        "he": "הלוח ביום האחרון של שלב הבתים",
+        "en": "The schedule on the last group-stage day"
+      },
+      "locale": "he"
+    },
+    {
+      "id": "schedule-en",
+      "path": "/?demo=1&lang=en",
+      "caption": {
+        "he": "הלוח ביום האחרון של שלב הבתים",
+        "en": "The schedule on the last group-stage day"
+      },
+      "locale": "en"
+    },
+    {
+      "id": "bracket-he",
+      "path": "/?demo=1&lang=he&view=bracket",
+      "caption": {
+        "he": "עץ הפלייאוף לפני שנקבעו הזוגות",
+        "en": "The playoff bracket before the pairings were set"
+      },
+      "locale": "he"
+    },
+    {
+      "id": "bracket-en",
+      "path": "/?demo=1&lang=en&view=bracket",
+      "caption": {
+        "he": "עץ הפלייאוף לפני שנקבעו הזוגות",
+        "en": "The playoff bracket before the pairings were set"
+      },
+      "locale": "en"
+    }
+  ]
+}
